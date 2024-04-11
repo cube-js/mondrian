@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2002-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.olap.fun;
@@ -41,7 +42,7 @@ class GenerateFunDef extends FunDefBase {
             "Generate",
             "Generate(<Set>, <String>[, <String>])",
             "Applies a set to a string expression and joins resulting sets by string concatenation.",
-            new String[] {"fSxS", "fSxSS"},
+            new String[] {"fSxS", "fSxSS", "fSxnS"},
             GenerateFunDef.class);
 
     private static final String[] ReservedWords = new String[] {"ALL"};
@@ -52,9 +53,9 @@ class GenerateFunDef extends FunDefBase {
 
     public Type getResultType(Validator validator, Exp[] args) {
         final Type type = args[1].getType();
-        if (type instanceof StringType) {
+        if (type instanceof StringType || type instanceof NumericType) {
             // Generate(<Set>, <String>[, <String>])
-            return type;
+            return new StringType();
         } else {
             final Type memberType = TypeUtil.toMemberOrTupleType(type);
             return new SetType(memberType);
@@ -63,9 +64,19 @@ class GenerateFunDef extends FunDefBase {
 
     public Calc compileCall(ResolvedFunCall call, ExpCompiler compiler) {
         final IterCalc iterCalc = compiler.compileIter(call.getArg(0));
-        if (call.getArg(1).getType() instanceof StringType) {
-            final StringCalc stringCalc =
-                compiler.compileString(call.getArg(1));
+        if (call.getArg(1).getType() instanceof StringType
+                || call.getArg(1).getType() instanceof NumericType) {
+            final StringCalc stringCalc;
+            if(call.getArg(1).getType() instanceof StringType) {
+                stringCalc = compiler.compileString(call.getArg(1));
+            } else {
+                //NumericType
+                mondrian.mdx.UnresolvedFunCall unresolvedFunCall = new mondrian.mdx.UnresolvedFunCall(
+                        "str",
+                        mondrian.olap.Syntax.Function,
+                        new Exp[] {call.getArg(1)});
+                stringCalc = compiler.compileString(unresolvedFunCall.accept(compiler.getValidator()));
+            }
             final StringCalc delimCalc;
             if (call.getArgCount() == 3) {
                 delimCalc = compiler.compileString(call.getArg(2));

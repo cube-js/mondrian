@@ -4,7 +4,9 @@
 * http://www.eclipse.org/legal/epl-v10.html.
 * You must accept the terms of that agreement to use this software.
 *
-* Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (c) 2002-2017 Hitachi Vantara.
+* Copyright (C) 2021 Sergei Semenkov
+* All rights reserved.
 */
 
 package mondrian.calc.impl;
@@ -38,7 +40,18 @@ public class BetterExpCompiler extends AbstractExpCompiler {
     public TupleCalc compileTuple(Exp exp) {
         final Calc calc = compile(exp);
         final Type type = exp.getType();
-        if (type instanceof TupleType) {
+        if (
+                type instanceof mondrian.olap.type.DimensionType
+                || type instanceof mondrian.olap.type.HierarchyType
+        ) {
+            mondrian.mdx.UnresolvedFunCall unresolvedFunCall = new mondrian.mdx.UnresolvedFunCall(
+                "DefaultMember",
+                mondrian.olap.Syntax.Property,
+                new Exp[] {exp});
+            Exp defaultMember = unresolvedFunCall.accept(this.getValidator());
+            return this.compileTuple(defaultMember);
+        }
+        else if (type instanceof TupleType) {
             assert calc instanceof TupleCalc;
             return (TupleCalc) calc;
         } else if (type instanceof MemberType) {
@@ -46,7 +59,14 @@ public class BetterExpCompiler extends AbstractExpCompiler {
             final MemberCalc memberCalc = (MemberCalc) calc;
             return new AbstractTupleCalc(exp, new Calc[] {memberCalc}) {
                 public Member[] evaluateTuple(Evaluator evaluator) {
-                    return new Member[] {memberCalc.evaluateMember(evaluator)};
+                    Member member = memberCalc.evaluateMember(evaluator);
+                    if(member == null) {
+                        //<Tuple>.Item(-1)
+                        return null;
+                    }
+                    else {
+                        return new Member[]{memberCalc.evaluateMember(evaluator)};
+                    }
                 }
             };
         } else {

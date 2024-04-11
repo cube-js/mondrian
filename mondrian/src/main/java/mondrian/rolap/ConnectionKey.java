@@ -35,7 +35,8 @@ class ConnectionKey extends StringKey {
         final String catalogUrl,
         final String connectionKey,
         final String jdbcUser,
-        final String dataSourceStr)
+        final String dataSourceStr,
+        final String sessionId)
     {
         String s;
         if (connectionUuidStr != null
@@ -44,6 +45,7 @@ class ConnectionKey extends StringKey {
             s = connectionUuidStr;
         } else {
             final StringBuilder buf = new StringBuilder(100);
+            attributeValue(buf, "sessiomId", sessionId);
             if (dataSource != null) {
                 attributeValue(buf, "jvm", Util.JVM_INSTANCE_UUID);
                 attributeValue(
@@ -57,6 +59,24 @@ class ConnectionKey extends StringKey {
             s = new ByteString(Util.digestMd5(buf.toString())).toString();
         }
         return new ConnectionKey(s);
+    }
+
+    static ConnectionKey create(
+            final String connectionUuidStr,
+            final DataSource dataSource,
+            final String catalogUrl,
+            final String connectionKey,
+            final String jdbcUser,
+            final String dataSourceStr)
+    {
+        return create(
+                connectionUuidStr,
+                dataSource,
+                catalogUrl,
+                connectionKey,
+                jdbcUser,
+                dataSourceStr,
+                null);
     }
 
     static void attributeValue(

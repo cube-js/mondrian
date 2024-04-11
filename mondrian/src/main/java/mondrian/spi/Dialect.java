@@ -4,7 +4,9 @@
 // http://www.eclipse.org/legal/epl-v10.html.
 // You must accept the terms of that agreement to use this software.
 //
-// Copyright (c) 2002-2019 Hitachi Vantara and others. All rights reserved.
+// Copyright (c) 2002-2019 Hitachi Vantara and others.
+// Copyright (C) 2021 Sergei Semenkov
+// All rights reserved.
 */
 package mondrian.spi;
 
@@ -805,6 +807,8 @@ public interface Dialect {
     SqlStatement.Type getType(ResultSetMetaData metadata, int columnIndex)
         throws SQLException;
 
+    boolean requiresDrillthroughMaxRowsInLimit();
+
     /**
      * Enumeration of common database types.
      *
@@ -822,6 +826,7 @@ public interface Dialect {
     enum DatabaseProduct {
         ACCESS,
         UNKNOWN,
+        CLICKHOUSE,
         DERBY,
         DB2_OLD_AS400,
         DB2_AS400,

@@ -481,7 +481,7 @@ public class IdBatchResolverTest  extends BatchTestCase {
             Statement statement,
             Formula[] formulae,
             QueryAxis[] axes,
-            String cube,
+            Subcube subcube,
             Exp slicer,
             QueryPart[] cellProps,
             boolean strictValidation)
@@ -493,7 +493,7 @@ public class IdBatchResolverTest  extends BatchTestCase {
                         false, slicer, AxisOrdinal.StandardAxisOrdinal.SLICER,
                         QueryAxis.SubtotalVisibility.Undefined, new Id[0]);
             return new QueryTestWrapper(
-                statement, formulae, axes, cube, slicerAxis, cellProps,
+                statement, formulae, axes, subcube.getCubeName(), slicerAxis, cellProps,
                 strictValidation);
         }
     }

@@ -7,6 +7,7 @@
 // Copyright (C) 2004-2005 TONBELLER AG
 // Copyright (C) 2005-2005 Julian Hyde
 // Copyright (C) 2005-2020 Hitachi Vantara and others
+// Copyright (C) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -32,6 +33,7 @@ import mondrian.olap.fun.AggregateFunDef;
 import mondrian.olap.fun.MemberExtractingVisitor;
 import mondrian.olap.fun.ParenthesesFunDef;
 import mondrian.olap.fun.ValidMeasureFunDef;
+import mondrian.olap.type.SetType;
 import mondrian.resource.MondrianResource;
 import mondrian.rolap.RestrictedMemberReader.MultiCardinalityDefaultMember;
 import mondrian.rolap.RolapHierarchy.LimitedRollupMember;
@@ -111,7 +113,18 @@ public class SqlConstraintUtils {
     TupleConstraintStruct expandedSet =
         makeContextConstraintSet( rEvaluator, restrictMemberTypes, disjointSlicerTuples );
 
-    final CellRequest request = RolapAggregationManager.makeRequest( expandedSet.getMembersArray() );
+    //This part is needed in case when constrain contains a calculated measure.
+    Member[] members = expandedSet.getMembersArray();
+    if (members.length > 0
+            && !(members[0] instanceof RolapStoredMeasure))
+    {
+      RolapStoredMeasure measure = (RolapStoredMeasure) baseCube.getMeasures().get(0);
+      ArrayList<Member> memberList = new ArrayList<Member>(Arrays.asList(members));
+      memberList.add(0, measure);
+      members = memberList.toArray(new Member[0]);
+    }
+
+    final CellRequest request = RolapAggregationManager.makeRequest( members );
 
     if ( request == null ) {
       if ( restrictMemberTypes ) {
@@ -139,6 +152,16 @@ public class SqlConstraintUtils {
 
     RolapStar.Column[] columns = request.getConstrainedColumns();
     Object[] values = request.getSingleValues();
+
+    if(columns.length > 0) {
+      //First add fact table to From.
+      if(aggStar != null) {
+        aggStar.getFactTable().addToFrom(sqlQuery, false, false);
+      }
+      else {
+        baseCube.getStar().getFactTable().addToFrom(sqlQuery, false, false);
+      }
+    }
 
     Map<MondrianDef.Expression, Set<RolapMember>> mapOfSlicerMembers = null;
     HashMap<MondrianDef.Expression, Boolean> done = new HashMap<MondrianDef.Expression, Boolean>();
@@ -642,7 +665,7 @@ public class SqlConstraintUtils {
         }
       } else {
         // Extract the list of members
-        expandSetFromCalculatedMember( evaluator, member, expandedSet );
+        expandSetFromCalculatedMember( evaluator, expression, expandedSet );
       }
     } else if ( expression instanceof MemberExpr ) {
       expandedSet.addMember( ( (MemberExpr) expression ).getMember() );
@@ -698,11 +721,11 @@ public class SqlConstraintUtils {
     return false;
   }
 
-  public static void expandSetFromCalculatedMember( Evaluator evaluator, Member member,
+    public static void expandSetFromCalculatedMember( Evaluator evaluator, Exp expression,
       TupleConstraintStruct expandedSet ) {
-    assert member.getExpression() instanceof ResolvedFunCall;
+    assert expression instanceof ResolvedFunCall;
 
-    ResolvedFunCall fun = (ResolvedFunCall) member.getExpression();
+    ResolvedFunCall fun = (ResolvedFunCall) expression;
 
     // Calling the main set evaluator to extend this.
     Exp exp = fun.getArg( 0 );

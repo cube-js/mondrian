@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -104,6 +105,7 @@ public class RolapCubeHierarchy extends RolapHierarchy {
             applyPrefix(cubeDim, rolapHierarchy.getCaption()),
             rolapHierarchy.isVisible(),
             applyPrefix(cubeDim, rolapHierarchy.getDescription()),
+            rolapHierarchy.getDisplayFolder(),
             rolapHierarchy.hasAll(),
             null,
             rolapHierarchy.getAnnotationMap());
@@ -223,19 +225,19 @@ public class RolapCubeHierarchy extends RolapHierarchy {
         if (caption == null) {
             return null;
         }
-        if (cubeDim instanceof MondrianDef.DimensionUsage) {
-            final MondrianDef.DimensionUsage dimensionUsage =
-                (MondrianDef.DimensionUsage) cubeDim;
-            if (dimensionUsage.name != null
-                && !dimensionUsage.name.equals(dimensionUsage.source))
-            {
-                if (dimensionUsage.caption != null) {
-                    return dimensionUsage.caption + "." + caption;
-                } else {
-                    return dimensionUsage.name + "." + caption;
-                }
-            }
-        }
+//        if (cubeDim instanceof MondrianDef.DimensionUsage) {
+//            final MondrianDef.DimensionUsage dimensionUsage =
+//                (MondrianDef.DimensionUsage) cubeDim;
+//            if (dimensionUsage.name != null
+//                && !dimensionUsage.name.equals(dimensionUsage.source))
+//            {
+//                if (dimensionUsage.caption != null) {
+//                    return dimensionUsage.caption + "." + caption;
+//                } else {
+//                    return dimensionUsage.name + "." + caption;
+//                }
+//            }
+//        }
         return caption;
     }
 

@@ -6,6 +6,8 @@
 //
 // Copyright (C) 2002-2005 Julian Hyde
 // Copyright (C) 2005-2020 Hitachi Vantara and others
+// Copyright (C) 2021 Sergei Semenkov
+//
 // All Rights Reserved.
 */
 
@@ -158,7 +160,7 @@ class DescendantsFunDef extends FunDefBase {
           final SchemaReader schemaReader =
             evaluator.getSchemaReader();
           descendantsLeavesByDepth(
-            member, result, schemaReader, depth );
+            member, result, schemaReader, depth , evaluator);
           hierarchizeMemberList( result, false );
           return new UnaryTupleList( result );
         }
@@ -263,7 +265,8 @@ class DescendantsFunDef extends FunDefBase {
     final Member member,
     final List<Member> result,
     final SchemaReader schemaReader,
-    final int depthLimit ) {
+    final int depthLimit,
+    final Evaluator evaluator) {
     if ( !schemaReader.isDrillable( member ) ) {
       if ( depthLimit >= 0 ) {
         result.add( member );
@@ -347,18 +350,23 @@ class DescendantsFunDef extends FunDefBase {
         List<Member> nextMembers = new ArrayList<Member>();
         for ( Member member : members ) {
           final int currentDepth = member.getLevel().getDepth();
-          List<Member> childMembers =
-            schemaReader.getMemberChildren( member, context );
-          if ( childMembers.size() == 0 ) {
-            // this member is a leaf -- add it
-            if ( currentDepth == levelDepth ) {
-              result.add( member );
-            }
-          } else {
-            // this member is not a leaf -- add its children
-            // to the list to be considered next iteration
-            if ( currentDepth <= levelDepth ) {
-              nextMembers.addAll( childMembers );
+          if(currentDepth == levelDepth) {
+            result.add( member );
+          }
+          else  {
+            List<Member> childMembers =
+                    schemaReader.getMemberChildren( member, context );
+            if ( childMembers.size() == 0 ) {
+              // this member is a leaf -- add it
+              if ( currentDepth <= levelDepth ) {
+                result.add( member );
+              }
+            } else {
+              // this member is not a leaf -- add its children
+              // to the list to be considered next iteration
+              if ( currentDepth <= levelDepth ) {
+                nextMembers.addAll( childMembers );
+              }
             }
           }
         }

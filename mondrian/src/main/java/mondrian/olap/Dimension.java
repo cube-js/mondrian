@@ -6,6 +6,7 @@
 //
 // Copyright (C) 1999-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 
@@ -17,8 +18,8 @@ package mondrian.olap;
  * @author jhyde, 1 March, 1999
  */
 public interface Dimension extends OlapElement, Annotated {
-    final String MEASURES_UNIQUE_NAME = "[Measures]";
-    final String MEASURES_NAME = "Measures";
+    final public static String MEASURES_UNIQUE_NAME = "[Measures]";
+    final public static String MEASURES_NAME = "Measures";
 
     /**
      * Returns an array of the hierarchies which belong to this dimension.

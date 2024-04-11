@@ -739,7 +739,10 @@ public class RolapMemberBase
         SchemaReader schemaReader,
         Member seedMember)
     {
-        seedMember = RolapUtil.strip((RolapMember) seedMember);
+        //Next line causes error in access control.
+        //Hierarchy grants put into role as RolapCubeHierarchy
+        //If next line is active - as RolapHierarchy and can't be found later.
+        //seedMember = RolapUtil.strip((RolapMember) seedMember);
 
          // The following are times for executing different set ordinals
          // algorithms for both the FoodMart Sales cube/Store dimension

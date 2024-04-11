@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2003-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.xmla;
@@ -28,6 +29,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.Transformer;
@@ -61,20 +63,17 @@ public class XmlaUtil implements XmlaConstants {
      * Nmtokens ::= Nmtoken (#x20 Nmtoken)*
      *
      */
-    private static final String[] CHAR_TABLE = new String[256];
     private static final Pattern LOWERCASE_PATTERN =
         Pattern.compile(".*[a-z].*");
 
-    static {
-        initCharTable(" \t\r\n(){}[]+/*%!,?");
-    }
-
-    private static void initCharTable(String charStr) {
-        char[] chars = charStr.toCharArray();
-        for (char c : chars) {
-            CHAR_TABLE[c] = encodeChar(c);
-        }
-    }
+    private static final String validCharactersExp = "^[:A-Z_a-z\u00C0\u00D6\u00D8-\u00F6\u00F8-\u02ff\u0370-\u037d"
+            + "\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff"
+            + "\uf900-\ufdcf\ufdf0-\ufffd]"
+            + "[:A-Z_a-z\u00C0\u00D6\u00D8-\u00F6"
+            + "\u00F8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f"
+            + "\u2c00-\u2fef\u3001-\udfff\uf900-\ufdcf\ufdf0-\ufffd\\-\\.0-9"
+            + "\u00b7\u0300-\u036f\u203f-\u2040]*\\Z";
+    private static Pattern validCharactersPatern = Pattern.compile(validCharactersExp);
 
     private static String encodeChar(char c) {
         StringBuilder buf = new StringBuilder();
@@ -115,12 +114,11 @@ public class XmlaUtil implements XmlaConstants {
         StringBuilder buf = new StringBuilder();
         char[] nameChars = name.toCharArray();
         for (char ch : nameChars) {
-            String encodedStr =
-                (ch >= CHAR_TABLE.length ? null : CHAR_TABLE[ch]);
-            if (encodedStr == null) {
+            boolean b = validCharactersPatern.matcher("" + ch).matches();
+            if(b) {
                 buf.append(ch);
             } else {
-                buf.append(encodedStr);
+                buf.append(encodeChar(ch));
             }
         }
         return buf.toString();
@@ -372,6 +370,14 @@ way too noisy
             public String getSessionId() {
                 return null;
             }
+
+            public String getAuthenticatedUser() {
+                return null;
+            }
+
+            public String[] getAuthenticatedUserGroups() {
+                return null;
+            }
         };
         final Rowset rowset =
             rowsetDefinition.getRowset(
@@ -533,6 +539,8 @@ way too noisy
                 } catch (RuntimeException re) {
                     // probably a bad locale string; fall through
                 }
+            } catch (RuntimeException re) {
+                // probably a bad locale string; fall through
             }
         }
         return null;

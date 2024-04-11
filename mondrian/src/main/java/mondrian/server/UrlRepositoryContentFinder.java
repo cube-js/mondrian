@@ -5,6 +5,7 @@
 * You must accept the terms of that agreement to use this software.
 *
 * Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (C) 2022 Sergei Semenkov
 */
 
 package mondrian.server;
@@ -43,6 +44,20 @@ public class UrlRepositoryContentFinder
         try {
             return Util.readURL(
                 url, Util.toMap(System.getProperties()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void setContent(String content) {
+        try {
+            String filePath = java.net.URI.create(url).getPath();
+            java.io.BufferedWriter out = new java.io.BufferedWriter(new java.io.FileWriter(filePath));
+            try {
+                out.write(content);
+            } finally {
+                out.close();
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

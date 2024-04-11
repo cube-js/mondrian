@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2002-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap.sql;
@@ -82,6 +83,7 @@ public class SqlQuery {
     private final ClauseList orderBy;
     private final List<ClauseList> groupingSets;
     private final ClauseList groupingFunctions;
+    private final ClauseList rowLimit;
 
     private final List<SqlStatement.Type> types =
         new ArrayList<SqlStatement.Type>();
@@ -147,6 +149,8 @@ public class SqlQuery {
         this.buf = new StringBuilder(128);
         this.groupingSets = new ArrayList<ClauseList>();
         this.dialect = dialect;
+        this.rowLimit = new ClauseList(false);
+
 
         // REVIEW emcdermid 10-Jul-2009: It might be okay to allow
         // hints in all cases, but for initial implementation this
@@ -678,6 +682,8 @@ public class SqlQuery {
             buf, generateFormattedSql, prefix, " having ", " and ", "", "");
         orderBy.toBuffer(
             buf, generateFormattedSql, prefix, " order by ", ", ", "", "");
+        rowLimit.toBuffer(
+                buf, generateFormattedSql, prefix, " ", ", ", "", "");
     }
 
     private void groupingFunctionsToBuffer(StringBuilder buf, String prefix) {
@@ -1058,6 +1064,12 @@ public class SqlQuery {
             this.leftAlias = leftAlias;
             this.rightKey = rightKey;
             this.rightAlias = rightAlias;
+        }
+    }
+
+    public void addRowLimit(int maxRowCount) {
+        if(this.dialect.requiresDrillthroughMaxRowsInLimit()) {
+            this.rowLimit.add("LIMIT " + Integer.toString(maxRowCount));
         }
     }
 }

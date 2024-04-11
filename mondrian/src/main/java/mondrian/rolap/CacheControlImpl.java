@@ -564,7 +564,7 @@ public class CacheControlImpl implements CacheControl {
         }
         final SegmentCacheManager manager =
             MondrianServer.forConnection(connection)
-                .getAggregationManager().cacheMgr;
+                .getAggregationManager().getCacheMgr(this.connection);
         Locus.execute(
             connection,
             "CacheControlImpl.printCacheState",

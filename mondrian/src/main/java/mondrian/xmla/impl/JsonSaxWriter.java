@@ -5,6 +5,7 @@
 * You must accept the terms of that agreement to use this software.
 *
 * Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (c) 2021 Sergei Semenkov
 */
 
 package mondrian.xmla.impl;
@@ -112,20 +113,21 @@ class JsonSaxWriter implements SaxWriter {
 
     public void startElement(String name, Object... attrs) {
         startElement(name);
-        for (int i = 0; i < attrs.length;) {
-            if (i > 0) {
-                buf.append(",\n");
-            } else {
-                buf.append("\n");
-            }
-            String attr = (String) attrs[i++];
-            buf.append(indentString);
-            Util.quoteForMdx(buf, attr);
-            buf.append(": ");
-            Object value = attrs[i++];
-            value(value);
-        }
-        stack.peek().ordinal = attrs.length / 2;
+//        startElement(name);
+//        for (int i = 0; i < attrs.length;) {
+//            if (i > 0) {
+//                buf.append(",\n");
+//            } else {
+//                buf.append("\n");
+//            }
+//            String attr = (String) attrs[i++];
+//            buf.append(indentString);
+//            Util.quoteForMdx(buf, attr);
+//            buf.append(": ");
+//            Object value = attrs[i++];
+//            value(value);
+//        }
+//        stack.peek().ordinal = attrs.length / 2;
     }
 
     public void endElement() {
@@ -144,6 +146,10 @@ class JsonSaxWriter implements SaxWriter {
     }
 
     public void characters(String data) {
+        value(data);
+    }
+
+    public void characters(Object data) {
         throw new UnsupportedOperationException();
     }
 

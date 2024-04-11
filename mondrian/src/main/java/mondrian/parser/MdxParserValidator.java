@@ -4,7 +4,9 @@
 * http://www.eclipse.org/legal/epl-v10.html.
 * You must accept the terms of that agreement to use this software.
 *
-* Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (c) 2002-2017 Hitachi Vantara.
+* Copyright (c) 2021 Sergei Semenkov
+* All rights reserved.
 */
 
 package mondrian.parser;
@@ -51,7 +53,7 @@ public interface MdxParserValidator {
             Statement statement,
             Formula[] formulae,
             QueryAxis[] axes,
-            String cube,
+            Subcube subcube,
             Exp slicer,
             QueryPart[] cellProps,
             boolean strictValidation);
@@ -65,11 +67,30 @@ public interface MdxParserValidator {
             int firstRowOrdinal,
             List<Exp> returnList);
 
+        CalculatedFormula makeCalculatedFormula(
+                String cubeName,
+                Formula e);
+
         /**
          * Creates an {@link mondrian.olap.Explain} object.
          */
         Explain makeExplain(
             QueryPart query);
+
+        Refresh makeRefresh(
+                String cubeName);
+
+        Update makeUpdate(
+                String cubeName,
+                List<Update.UpdateClause> list);
+
+        DmvQuery makeDmvQuery(
+                String tableName,
+                List<String> columns,
+                Exp whereExpression);
+
+        TransactionCommand makeTransactionCommand(
+                TransactionCommand.Command c);
     }
 }
 

@@ -205,7 +205,7 @@ public class RolapSchema implements Schema {
      * @param catalogStr may be null
      * @param connectInfo Connection properties
      */
-    RolapSchema(
+    public RolapSchema(
         SchemaKey key,
         ByteString md5Bytes,
         String catalogUrl,
@@ -1373,7 +1373,7 @@ System.out.println("RolapSchema.createMemberReader: CONTAINS NAME");
                 // let cache manager load pending segments
                 // from external cache if needed
                 MondrianServer.forConnection(
-                    internalConnection).getAggregationManager().getCacheMgr()
+                    internalConnection).getAggregationManager().getCacheMgr(internalConnection)
                     .loadCacheForStar(star);
             }
             return star;

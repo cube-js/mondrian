@@ -4,7 +4,9 @@
 // http://www.eclipse.org/legal/epl-v10.html.
 // You must accept the terms of that agreement to use this software.
 //
-// Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+// Copyright (c) 2002-2017 Hitachi Vantara.
+// Copyright (c) 2021 Sergei Semenkov
+// All rights reserved.
 */
 package mondrian.olap.fun.vba;
 
@@ -1903,10 +1905,20 @@ public class Vba {
             throw new InvalidArgumentException(
                 "start must be -1 or a location in the string to start");
         }
+        String lwStringCheck = stringCheck;
+        String lwStringMatch = stringMatch;
+        if(!mondrian.olap.MondrianProperties.instance().CaseSensitiveMdxInstr.get()) {
+            if(stringCheck != null) {
+                lwStringCheck = stringCheck.toLowerCase();
+            }
+            if(stringMatch != null) {
+                lwStringMatch = stringMatch.toLowerCase();
+            }
+        }
         if (start != -1) {
-            return stringCheck.indexOf(stringMatch, start - 1) + 1;
+            return lwStringCheck.indexOf(lwStringMatch, start - 1) + 1;
         } else {
-            return stringCheck.indexOf(stringMatch) + 1;
+            return lwStringCheck.indexOf(lwStringMatch) + 1;
         }
     }
 
@@ -1948,10 +1960,20 @@ public class Vba {
             throw new InvalidArgumentException(
                 "start must be -1 or a location in the string to start");
         }
+        String lwStringCheck = stringCheck;
+        String lwStringMatch = stringMatch;
+        if(!mondrian.olap.MondrianProperties.instance().CaseSensitiveMdxInstr.get()) {
+            if(stringCheck != null) {
+                lwStringCheck = stringCheck.toLowerCase();
+            }
+            if(stringMatch != null) {
+                lwStringMatch = stringMatch.toLowerCase();
+            }
+        }
         if (start != -1) {
-            return stringCheck.lastIndexOf(stringMatch, start - 1) + 1;
+            return lwStringCheck.lastIndexOf(lwStringMatch, start - 1) + 1;
         } else {
-            return stringCheck.lastIndexOf(stringMatch) + 1;
+            return lwStringCheck.lastIndexOf(lwStringMatch) + 1;
         }
     }
 

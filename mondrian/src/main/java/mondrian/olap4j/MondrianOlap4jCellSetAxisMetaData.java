@@ -6,6 +6,8 @@
 //
 // Copyright (C) 2003-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara
+// Copyright (C) 2019 Topsoft
+// Copyright (c) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.olap4j;
@@ -57,6 +59,10 @@ class MondrianOlap4jCellSetAxisMetaData implements CellSetAxisMetaData {
             final String[] names = id.toStringArray();
             Property olap4jProperty = null;
             if (names.length == 1) {
+                if(names[0].equals("MEMBER_VALUE")) {
+                    //TODO:
+                    continue;
+                }
                 olap4jProperty =
                     Util.lookup(
                         Property.StandardMemberProperty.class, names[0]);

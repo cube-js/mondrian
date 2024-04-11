@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2003-2005 Julian Hyde
 // Copyright (C) 2005-2020 Hitachi Vantara and others
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -47,6 +48,7 @@ import mondrian.olap.Query;
 import mondrian.olap.QueryAxis;
 import mondrian.olap.Syntax;
 import mondrian.olap.fun.AggregateFunDef;
+import mondrian.olap.fun.ParenthesesFunDef;
 import mondrian.olap.fun.CrossJoinTest.NullFunDef;
 import mondrian.olap.fun.ParenthesesFunDef;
 import mondrian.olap.fun.TestMember;
@@ -221,6 +223,44 @@ public class SqlConstraintUtilsTest extends FoodMartTestCase {
         Member member = Mockito.mock(Member.class);
         Mockito.doReturn(true).when(member).isCalculated();
         Mockito.doReturn(memberExp).when(member).getExpression();
+        return member;
+    }
+
+    private Member makeAggregateInParenthesesExprMember(
+            Evaluator mockEvaluator, List<Member> endMembers)
+    {
+        Member member = Mockito.mock(Member.class);
+        Mockito.doReturn(true).when(member).isCalculated();
+
+        Member aggregatedMember0 = Mockito.mock(Member.class);
+        Exp aggregateArg0 = new MemberExpr(aggregatedMember0);
+
+        FunDef dummy = Mockito.mock(FunDef.class);
+        Mockito.doReturn(Syntax.Function).when(dummy).getSyntax();
+        Mockito.doReturn("dummy").when(dummy).getName();
+
+        FunDef aggregateFunDef = new AggregateFunDef(dummy);
+        Exp[] args = new Exp[]{aggregateArg0};
+        Type returnType = new DecimalType(1, 1);
+        Exp aggregateExp = new ResolvedFunCall(aggregateFunDef, args, returnType);
+
+        FunDef parenthesesDef = new ParenthesesFunDef(Category.Numeric);
+        args = new Exp[]{aggregateExp};
+        Exp memberExp = new ResolvedFunCall(parenthesesDef, args, returnType);
+
+        Mockito.doReturn(memberExp).when(member).getExpression();
+
+        SetEvaluator setEvaluator = Mockito.mock(SetEvaluator.class);
+        Mockito.doReturn(setEvaluator)
+                .when(mockEvaluator).getSetEvaluator(aggregateArg0, true);
+        Mockito.doReturn(
+                new UnaryTupleList(endMembers))
+                .when(setEvaluator).evaluateTupleIterable();
+
+        Assert.assertEquals(true, member.isCalculated());
+        Assert.assertEquals(
+                true, SqlConstraintUtils.isSupportedCalculatedMember(member));
+
         return member;
     }
 
@@ -520,6 +560,37 @@ public class SqlConstraintUtilsTest extends FoodMartTestCase {
         // test
         assertSameContent("",  aggregatedMembers, r);
 
+        // Aggregate In Parentheses
+        /*
+            WITH
+            MEMBER [Time].[CTime] as
+            (
+            Aggregate({[Time].[1997]})
+            )
+            Select
+            [Measures].[Sales Count] ON 0,
+            NON EMPTY (
+            {
+            [Store].[All Stores]
+            ,
+            [Store].[Canada].[BC].[Vancouver].[Store 19].CHILDREN
+            }
+            )
+            ON 1
+            FROM [Sales]
+            WHERE [Time].[CTime]
+         */
+        // 0
+        aggregatedMembers = Collections.emptyList();
+        member = makeAggregateInParenthesesExprMember(evaluator, aggregatedMembers);
+        // tested call
+        constraint = new TupleConstraintStruct();
+        SqlConstraintUtils.expandSupportedCalculatedMember(
+                member, evaluator, true, constraint);
+        r = constraint.getMembers();
+        // test
+        assertSameContent("",  aggregatedMembers, r);
+
         // 1
         aggregatedMembers = Collections.singletonList(endMember0);
         member = makeAggregateExprMember(evaluator, aggregatedMembers);
@@ -782,7 +853,7 @@ public class SqlConstraintUtilsTest extends FoodMartTestCase {
 
         TupleConstraintStruct constraint = new TupleConstraintStruct();
         SqlConstraintUtils.expandSetFromCalculatedMember(
-            evaluatorMock, memberMock, constraint);
+            evaluatorMock, memberMock.getExpression(), constraint);
         return constraint;
     }
 

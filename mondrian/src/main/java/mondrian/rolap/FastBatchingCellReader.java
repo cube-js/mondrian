@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2004-2005 Julian Hyde
 // Copyright (C) 2005-2020 Hitachi Vantara and others
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -84,6 +85,8 @@ public class FastBatchingCellReader implements CellReader {
 
     private final Execution execution;
 
+    public HashMap<List<List<Member>>, CompoundPredicateInfo> aggregationListHash = new HashMap<>();
+
     /**
      * Creates a FastBatchingCellReader.
      *
@@ -102,7 +105,7 @@ public class FastBatchingCellReader implements CellReader {
         assert execution != null;
         this.cube = cube;
         this.aggMgr = aggMgr;
-        cacheMgr = aggMgr.cacheMgr;
+        cacheMgr = aggMgr.getCacheMgr(execution.getMondrianStatement().getMondrianConnection());
         pinnedSegments = this.aggMgr.createPinSet();
         cacheEnabled = !MondrianProperties.instance().DisableCaching.get();
 

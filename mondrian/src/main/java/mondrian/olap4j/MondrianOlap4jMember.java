@@ -4,7 +4,10 @@
 * http://www.eclipse.org/legal/epl-v10.html.
 * You must accept the terms of that agreement to use this software.
 *
-* Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (c) 2002-2017 Hitachi Vantara.
+* Copyright (C) 2021 Topsoft
+* Copyright (C) 2022 Sergei Semenkov
+* All rights reserved.
 */
 
 package mondrian.olap4j;
@@ -32,7 +35,7 @@ import java.util.List;
  * @author jhyde
  * @since May 25, 2007
  */
-class MondrianOlap4jMember
+public class MondrianOlap4jMember
     extends MondrianOlap4jMetadataElement
     implements Member, Named
 {
@@ -254,9 +257,13 @@ class MondrianOlap4jMember
             mondrian.olap.Property.VISIBLE.getName());
     }
 
-    protected OlapElement getOlapElement() {
+    public OlapElement getOlapElement() {
         return member;
     }
+
+    public mondrian.olap.Member getOlapMember() { return member; }
+
+
 }
 
 // End MondrianOlap4jMember.java

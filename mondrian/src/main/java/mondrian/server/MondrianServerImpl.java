@@ -5,6 +5,8 @@
 // You must accept the terms of that agreement to use this software.
 //
 // Copyright (C) 2006-2017 Hitachi Vantara
+// Copyright (C) 2019 Topsoft. All rights reserved.
+// Copyright (C) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.server;
@@ -133,16 +135,16 @@ class MondrianServerImpl
             "Hierarchy", "Hierary_Unique_name", "IIF", "IsEmpty",
             "Include_Null", "Include_Statistics", "Inclusive", "Input_Only",
             "IsDescendant", "Item", "Lag", "LastChild", "LastPeriods",
-            "LastSibling", "Lead", "Level", "Level_Unique_Name", "Levels",
+            "LastSibling", "Lead", "Level", "Level_Number", "Level_Unique_Name", "Levels",
             "LinRegIntercept", "LinRegR2", "LinRegPoint", "LinRegSlope",
             "LinRegVariance", "Long", "MaxRows", "Median", "Member",
             "Member_Caption", "Member_Guid", "Member_Name", "Member_Ordinal",
             "Member_Type", "Member_Unique_Name", "Members",
             "Microsoft_Clustering", "Microsoft_Decision_Trees", "Mining",
             "Model", "Model_Existence_Only", "Models", "Move", "MTD", "Name",
-            "Nest", "NextMember", "Non", "Normal", "Not", "Ntext", "Nvarchar",
+            "Nest", "NextMember", "Non", "NonEmpty", "Normal", "Not", "Ntext", "Nvarchar",
             "OLAP", "On", "OpeningPeriod", "OpenQuery", "Or", "Ordered",
-            "Ordinal", "Pages", "Pages", "ParallelPeriod", "Parent",
+            "Ordinal", "Pages", "ParallelPeriod", "Parent",
             "Parent_Level", "Parent_Unique_Name", "PeriodsToDate", "PMML",
             "Predict", "Predict_Only", "PredictAdjustedProbability",
             "PredictHistogram", "Prediction", "PredictionScore",
@@ -158,7 +160,7 @@ class MondrianServerImpl
             "StdDev", "Stdev", "StripCalculatedMembers", "StrToSet",
             "StrToTuple", "SubSet", "Support", "Tail", "Text", "Thresholds",
             "ToggleDrillState", "TopCount", "TopPercent", "TopSum",
-            "TupleToStr", "Under", "Uniform", "UniqueName", "Use", "Value",
+            "TupleToStr", "Under", "Uniform", "UniqueName", "Use",
             "Value", "Var", "Variance", "VarP", "VarianceP", "VisualTotals",
             "When", "Where", "With", "WTD", "Xor"));
 
@@ -314,6 +316,7 @@ class MondrianServerImpl
         }
         this.shutdown  = true;
         aggMgr.shutdown();
+        Session.shutdown();
         monitor.shutdown();
         repository.shutdown();
         shepherd.shutdown();
@@ -466,6 +469,20 @@ class MondrianServerImpl
         } catch (MBeanRegistrationException e) {
             LOGGER.warn("Failed to register JMX MBean", e);
         }
+    }
+
+    public List<Statement> getStatements(String sessionId) {
+        List<Statement> result = new ArrayList<Statement>();
+        for(Statement statement: statementMap.values()) {
+            if(statement.getMondrianConnection().getConnectInfo().get("sessionId").equals(sessionId)) {
+                result.add(statement);
+            }
+        }
+        return result;
+    }
+
+    public Repository getRepository() {
+        return repository;
     }
 }
 

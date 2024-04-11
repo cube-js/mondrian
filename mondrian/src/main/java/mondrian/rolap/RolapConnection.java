@@ -624,8 +624,12 @@ public class RolapConnection extends ConnectionBase {
             + used
             + ", max="
             + max
-            + " for connection: "
-            + getConnectString() );
+            + " for query: "
+            + query.toString()
+            // connection string can contain user name and password
+            //+ " for connection: "
+            //+ getConnectString()
+        );
       }
     };
     MemoryMonitor mm = MemoryMonitorFactory.getMemoryMonitor();

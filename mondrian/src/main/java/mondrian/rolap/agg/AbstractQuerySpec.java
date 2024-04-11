@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2005-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap.agg;
@@ -80,81 +81,126 @@ public abstract class AbstractQuerySpec implements QuerySpec {
             getMeasureAlias(i));
     }
 
-    protected abstract boolean isAggregate();
-
-    protected Map<String, String> nonDistinctGenerateSql(SqlQuery sqlQuery)
-    {
-        // add constraining dimensions
+    protected String getColumnAlias(RolapStar.Column column) {
         RolapStar.Column[] columns = getColumns();
-        int arity = columns.length;
-        if (countOnly) {
-            sqlQuery.addSelect("count(*)", SqlStatement.Type.INT);
-        }
-        for (int i = 0; i < arity; i++) {
-            RolapStar.Column column = columns[i];
-            RolapStar.Table table = column.getTable();
-            if (table.isFunky()) {
-                // this is a funky dimension -- ignore for now
-                continue;
+        for(int i = 0; i < columns.length; i++) {
+            if(columns[i] == column) {
+                return getColumnAlias(i);
             }
-            table.addToFrom(sqlQuery, false, true);
+        }
+        return null;
+    }
 
-            String expr = column.generateExprString(sqlQuery);
+    protected StarColumnPredicate getColumnPredicate(RolapStar.Column column) {
+        RolapStar.Column[] columns = getColumns();
+        for(int i = 0; i < columns.length; i++) {
+            if(columns[i] == column) {
+                return getColumnPredicate(i);
+            }
+        }
+        return null;
+    }
 
-            StarColumnPredicate predicate = getColumnPredicate(i);
-            final String where = RolapStar.Column.createInExpr(
+    protected void addMeasure(RolapStar.Measure measure, SqlQuery sqlQuery) {
+        for (int i = 0, count = getMeasureCount(); i < count; i++) {
+            if(measure == getMeasure(i)) {
+                addMeasure(i, sqlQuery);
+            }
+        }
+    }
+
+    protected void addColumn(RolapStar.Column column, SqlQuery sqlQuery) {
+        RolapStar.Table table = column.getTable();
+        if (table.isFunky()) {
+            // this is a funky dimension -- ignore for now
+            return;
+        }
+        table.addToFrom(sqlQuery, false, true);
+
+        String expr = column.generateExprString(sqlQuery);
+
+        StarColumnPredicate predicate = getColumnPredicate(column);
+        final String where = RolapStar.Column.createInExpr(
                 expr,
                 predicate,
                 column.getDatatype(),
                 sqlQuery);
-            if (!where.equals("true")) {
-                sqlQuery.addWhere(where);
-            }
+        if (!where.equals("true")) {
+            sqlQuery.addWhere(where);
+        }
 
-            if (countOnly) {
-                continue;
-            }
+        if (countOnly) {
+            return;
+        }
 
-            if (!isPartOfSelect(column)) {
-                continue;
-            }
+        if (!isPartOfSelect(column)) {
+            return;
+        }
 
-            // some DB2 (AS400) versions throw an error, if a column alias is
-            // there and *not* used in a subsequent order by/group by
-            final Dialect dialect = sqlQuery.getDialect();
-            final String alias;
-            final Dialect.DatabaseProduct databaseProduct =
+        // some DB2 (AS400) versions throw an error, if a column alias is
+        // there and *not* used in a subsequent order by/group by
+        final Dialect dialect = sqlQuery.getDialect();
+        final String alias;
+        final Dialect.DatabaseProduct databaseProduct =
                 dialect.getDatabaseProduct();
-            if (databaseProduct == Dialect.DatabaseProduct.DB2_AS400) {
-                alias =
+        if (databaseProduct == Dialect.DatabaseProduct.DB2_AS400) {
+            alias =
                     sqlQuery.addSelect(expr, column.getInternalType(), null);
-            } else {
-                alias =
+        } else {
+            alias =
                     sqlQuery.addSelect(
-                        expr, column.getInternalType(), getColumnAlias(i));
-            }
+                            expr, column.getInternalType(), getColumnAlias(column));
+        }
 
-            if (isAggregate()) {
-                sqlQuery.addGroupBy(expr, alias);
-            }
+        if (isAggregate()) {
+            sqlQuery.addGroupBy(expr, alias);
+        }
 
-            // Add ORDER BY clause to make the results deterministic.
-            // Derby has a bug with ORDER BY, so ignore it.
-            if (isOrdered()) {
-                sqlQuery.addOrderBy(
+        // Add ORDER BY clause to make the results deterministic.
+        // Derby has a bug with ORDER BY, so ignore it.
+        if (isOrdered()) {
+            sqlQuery.addOrderBy(
                     expr,
                     alias,
                     true, false, false, true);
+        }
+    }
+
+
+        protected abstract boolean isAggregate();
+
+    protected List<RolapStar.Column> getItems() {
+        List<RolapStar.Column> items = new ArrayList<RolapStar.Column>();
+        for(RolapStar.Column column :this.getColumns()) {
+            items.add(column);
+        }
+        for (int i = 0, count = getMeasureCount(); i < count; i++) {
+            items.add(getMeasure(i));
+        }
+        return items;
+    }
+
+    protected Map<String, String> nonDistinctGenerateSql(SqlQuery sqlQuery)
+    {
+        //First add fact table to From.
+        getStar().getFactTable().addToFrom(sqlQuery, false, false);
+
+        if (countOnly) {
+            sqlQuery.addSelect("count(*)", SqlStatement.Type.INT);
+        }
+
+        List<RolapStar.Column> items = getItems();
+        for(Object item : items) {
+            if(item instanceof RolapStar.Measure) {
+                addMeasure((RolapStar.Measure)item, sqlQuery);
+            }
+            else if(item instanceof RolapStar.Column) {
+                addColumn((RolapStar.Column)item, sqlQuery);
             }
         }
 
         // Add compound member predicates
         extraPredicates(sqlQuery);
-
-        // add measures
-        for (int i = 0, count = getMeasureCount(); i < count; i++) {
-            addMeasure(i, sqlQuery);
-        }
 
         return Collections.emptyMap();
     }

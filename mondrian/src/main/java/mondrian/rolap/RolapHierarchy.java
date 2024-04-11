@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -84,6 +85,8 @@ public class RolapHierarchy extends HierarchyBase {
     private final Map<String, Annotation> annotationMap;
     final RolapHierarchy closureFor;
 
+    protected String displayFolder = null;
+
     /**
      * Creates a hierarchy.
      *
@@ -99,11 +102,13 @@ public class RolapHierarchy extends HierarchyBase {
         String caption,
         boolean visible,
         String description,
+        String displayFolder,
         boolean hasAll,
         RolapHierarchy closureFor,
         Map<String, Annotation> annotationMap)
     {
         super(dimension, subName, caption, visible, description, hasAll);
+        this.displayFolder = displayFolder;
         this.annotationMap = annotationMap;
         this.allLevelName = "(All)";
         this.allMemberName =
@@ -189,6 +194,7 @@ public class RolapHierarchy extends HierarchyBase {
             xmlHierarchy.caption,
             xmlHierarchy.visible,
             xmlHierarchy.description,
+            xmlHierarchy.displayFolder,
             xmlHierarchy.hasAll,
             null,
             createAnnotationMap(xmlHierarchy.annotations));
@@ -196,7 +202,10 @@ public class RolapHierarchy extends HierarchyBase {
         assert !(this instanceof RolapCubeHierarchy);
 
         this.xmlHierarchy = xmlHierarchy;
-        MondrianDef.RelationOrJoin xmlHierarchyRelation = xmlHierarchy.relation;
+        MondrianDef.RelationOrJoin xmlHierarchyRelation =
+                RolapUtil.processRelation(
+                        ((RolapSchema)dimension.getSchema()).getXMLSchema(),
+                        xmlHierarchy.relation);
         if (xmlHierarchy.relation == null
             && xmlHierarchy.memberReaderClass == null
             && cube != null)
@@ -356,6 +365,10 @@ public class RolapHierarchy extends HierarchyBase {
 
     protected Logger getLogger() {
         return LOGGER;
+    }
+
+    public String getDisplayFolder() {
+        return this.displayFolder;
     }
 
     public boolean equals(Object o) {
@@ -1386,6 +1399,8 @@ public class RolapHierarchy extends HierarchyBase {
         public boolean isEvaluated() {
             return true;
         }
+
+        public RolapMember getSourceMember() { return this.member; }
     }
 
     /**
@@ -1495,7 +1510,7 @@ public class RolapHierarchy extends HierarchyBase {
      * Compiled expression that computes rollup over a set of visible children.
      * The {@code listCalc} expression determines that list of children.
      */
-    private static class LimitedRollupAggregateCalc
+    public static class LimitedRollupAggregateCalc
         extends AggregateFunDef.AggregateCalc
     {
         public LimitedRollupAggregateCalc(

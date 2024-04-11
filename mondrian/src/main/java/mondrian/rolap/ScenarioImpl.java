@@ -18,6 +18,7 @@ import mondrian.olap.type.ScalarType;
 
 import org.olap4j.AllocationPolicy;
 import org.olap4j.Scenario;
+import org.olap4j.mdx.Syntax;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -150,16 +151,32 @@ public final class ScenarioImpl implements Scenario {
         // TODO: add a mechanism for persisting the overrides to a file.
         //
         // FIXME: make thread-safe
-        writebackCells.add(
+        for(RolapMember child: members) {
+            RolapMember parent = child.getParentMember();
+            while(parent != null) {
+                affectedParentMembers.put(parent, parent);
+                parent = parent.getParentMember();
+            }
+        }
+
+        WritebackCell writebackCell =
             new WritebackCell(
-                baseCube,
-                new ArrayList<RolapMember>(members),
-                constrainedColumnsBitKey,
-                compactKeyValues,
-                newValue,
-                currentValue,
-                allocationPolicy));
+                    baseCube,
+                    new ArrayList<RolapMember>(members),
+                    constrainedColumnsBitKey,
+                    compactKeyValues,
+                    newValue,
+                    currentValue,
+                    allocationPolicy);
+        writebackCells.add(writebackCell);
+        writebackCellMap.put(members, writebackCell);
     }
+
+    public java.util.Map<List<RolapMember>, WritebackCell> writebackCellMap =
+            new java.util.HashMap<List<RolapMember>, WritebackCell>();
+
+    public java.util.Map<RolapMember,RolapMember> affectedParentMembers =
+            new java.util.HashMap<RolapMember,RolapMember>();
 
     public String getId() {
         return Integer.toString(id);
@@ -330,6 +347,7 @@ public final class ScenarioImpl implements Scenario {
         private final AllocationPolicy allocationPolicy;
         private Member[] membersByOrdinal;
         private final double atomicCellCount;
+        public List<RolapMember> members;
 
         /**
          * Creates a WritebackCell.
@@ -355,6 +373,7 @@ public final class ScenarioImpl implements Scenario {
             Util.discard(cube); // not used currently
             Util.discard(constrainedColumnsBitKey); // not used currently
             Util.discard(keyValues); // not used currently
+            this.members = members;
             this.newValue = newValue;
             this.currentValue = currentValue;
             this.allocationPolicy = allocationPolicy;
@@ -484,93 +503,174 @@ public final class ScenarioImpl implements Scenario {
         }
 
         public Object evaluate(Evaluator evaluator) {
-            // Evaluate current member in the given scenario by expanding in
-            // terms of the writeback cells.
-
-            // First, evaluate in the null scenario.
-            final Member defaultMember =
-                scenario.member.getHierarchy().getDefaultMember();
             final int savepoint = evaluator.savepoint();
+            final Member defaultMember =
+                    scenario.member.getHierarchy().getDefaultMember();
             try {
-                evaluator.setContext(defaultMember);
-                final Object o = evaluator.evaluateCurrent();
-                double d =
-                    o instanceof Number
-                        ? ((Number) o).doubleValue()
-                        : 0d;
-
-                // Look for writeback cells which are equal to, ancestors of,
-                // or descendants of, the current cell. Modify the value
-                // accordingly.
-                //
-                // It is possible that the value is modified by several
-                // writebacks. If so, order is important.
-                int changeCount = 0;
-                for (ScenarioImpl.WritebackCell writebackCell
-                    : scenario.writebackCells)
-                {
-                    CellRelation relation =
-                        writebackCell.getRelationTo(evaluator.getMembers());
-                    switch (relation) {
-                    case ABOVE:
-                        // This cell is below the writeback cell. Value is
-                        // determined by allocation policy.
-                        double atomicCellCount =
-                        evaluateAtomicCellCount((RolapEvaluator) evaluator);
-                        if (atomicCellCount == 0d) {
-                            // Sometimes the value comes back zero if the cache
-                            // is not ready. Switch to 1, which at least does
-                            // not give divide-by-zero. We will be invoked again
-                            // for the correct answer when the cache has been
-                            // populated.
-                            atomicCellCount = 1d;
-                        }
-                        switch (writebackCell.allocationPolicy) {
-                        case EQUAL_ALLOCATION:
-                            d = writebackCell.newValue
-                            * atomicCellCount
-                            / writebackCell.atomicCellCount;
-                            break;
-                        case EQUAL_INCREMENT:
-                            d += writebackCell.getOffset()
-                            * atomicCellCount
-                            / writebackCell.atomicCellCount;
-                            break;
-                        default:
-                            throw Util.unexpected(
-                                writebackCell.allocationPolicy);
-                        }
-                        ++changeCount;
-                        break;
-                    case EQUAL:
-                        // This cell is the writeback cell. Value is the value
-                        // written back.
-                        d = writebackCell.newValue;
-                        ++changeCount;
-                        break;
-                    case BELOW:
-                        // This cell is above the writeback cell. Value is the
-                        // current value plus the change in the writeback cell.
-                        d += writebackCell.getOffset();
-                        ++changeCount;
-                        break;
-                    case NONE:
-                        // Writeback cell is unrelated. It has no effect on
-                        // cell's value.
-                        break;
-                    default:
-                        throw Util.unexpected(relation);
+                ArrayList<RolapMember> evaluatorMembers = new ArrayList<RolapMember>();
+                for(Member member: evaluator.getMembers()) {
+                    if(member.getHierarchy() == scenario.member.getHierarchy()) {
+                        evaluatorMembers.add((RolapMember)defaultMember);
+                    }
+                    else {
+                        evaluatorMembers.add((RolapMember)member);
                     }
                 }
-                // Don't create a new object if value has not changed.
-                if (changeCount == 0) {
-                    return o;
-                } else {
-                    return d;
+
+                WritebackCell writebackCellFromMap = scenario.writebackCellMap.get(evaluatorMembers);
+
+                if(writebackCellFromMap != null) {
+                    return writebackCellFromMap.newValue;
+                }
+                else {
+                    RolapMember firstMemberWithChildren = null;
+                    for(Member member: evaluator.getMembers()) {
+                        if(this.scenario.affectedParentMembers.get(member) != null) {
+                            ArrayList<RolapMember> children = new ArrayList<RolapMember>();
+                            ((RolapHierarchy) member.getHierarchy()).getMemberReader().getMemberChildren((RolapMember) member, children);
+                            if (children.size() > 0) {
+                                firstMemberWithChildren = (RolapMember) member;
+                                break;
+                            }
+                        }
+                    }
+
+                    if(firstMemberWithChildren != null) {
+                        Exp ae = evaluator.getQuery().getConnection().parseExpression(
+                                "Aggregate("
+                                        + firstMemberWithChildren.getUniqueName().toString()
+                                        + ".Children)");
+
+                        mondrian.calc.ExpCompiler compiler = evaluator.getQuery().createCompiler();
+                        Calc calc = compiler.compileScalar(ae.accept(compiler.getValidator()), false);
+
+                        final Object o = calc.evaluate(evaluator);
+                        return o;
+
+//                Validator validator =
+//                        Util.createSimpleValidator(mondrian.olap.fun.BuiltinFunTable.instance());
+//
+//                ae = ae.accept(validator);
+
+//                final Object o2 = ((CalcExp)ae).evaluateScalar(evaluator);
+
+//                Exp setExpr = query.getConnection()
+//                        .parseExpression(
+//                                "{"
+//                                        + memberFormula.getIdentifier().toString()
+//                                        + "}");
+//                mondrian.mdx.UnresolvedFunCall ce = new mondrian.mdx.UnresolvedFunCall(
+//                        "Children",
+//                        Syntax.Property,
+//                        new Exp[] {new mondrian.mdx.MemberExpr(firstMemberWithChildren)});
+//                UnresolvedFunCall se = new UnresolvedFunCall(
+//                        "Set",
+//                        Syntax.Property,
+//                        new Exp[] {new MemberExpr(firstMemberWithChildren)});
+//
+//
+//                Validator validator =
+//                        Util.createSimpleValidator(BuiltinFunTable.instance());
+//                aggregateChildrenExpression = fc.accept(validator);
+                    }
+                    else {
+                        evaluator.setContext(defaultMember);
+                        final Object o = evaluator.evaluateCurrent();
+                        return o;
+                    }
                 }
             } finally {
                 evaluator.restore(savepoint);
             }
+
+//            // Evaluate current member in the given scenario by expanding in
+//            // terms of the writeback cells.
+//
+//            // First, evaluate in the null scenario.
+//            final Member defaultMember =
+//                scenario.member.getHierarchy().getDefaultMember();
+//            final int savepoint = evaluator.savepoint();
+//            try {
+//                evaluator.setContext(defaultMember);
+//                final Object o = evaluator.evaluateCurrent();
+//
+//                Object d =
+//                    o instanceof Number
+//                        ? ((Number) o).doubleValue()
+//                        : 0d;
+//
+//                // Look for writeback cells which are equal to, ancestors of,
+//                // or descendants of, the current cell. Modify the value
+//                // accordingly.
+//                //
+//                // It is possible that the value is modified by several
+//                // writebacks. If so, order is important.
+//                int changeCount = 0;
+//                for (ScenarioImpl.WritebackCell writebackCell
+//                    : scenario.writebackCellMap.values())
+//                {
+//                    CellRelation relation =
+//                        writebackCell.getRelationTo(evaluator.getMembers());
+//                    switch (relation) {
+//                    case ABOVE:
+//                        // This cell is below the writeback cell. Value is
+//                        // determined by allocation policy.
+//                        double atomicCellCount =
+//                        evaluateAtomicCellCount((RolapEvaluator) evaluator);
+//                        if (atomicCellCount == 0d) {
+//                            // Sometimes the value comes back zero if the cache
+//                            // is not ready. Switch to 1, which at least does
+//                            // not give divide-by-zero. We will be invoked again
+//                            // for the correct answer when the cache has been
+//                            // populated.
+//                            atomicCellCount = 1d;
+//                        }
+//                        switch (writebackCell.allocationPolicy) {
+//                        case EQUAL_ALLOCATION:
+//                            d = writebackCell.newValue
+//                            * atomicCellCount
+//                            / writebackCell.atomicCellCount;
+//                            break;
+//                        case EQUAL_INCREMENT:
+//                            d += writebackCell.getOffset()
+//                            * atomicCellCount
+//                            / writebackCell.atomicCellCount;
+//                            break;
+//                        default:
+//                            throw Util.unexpected(
+//                                writebackCell.allocationPolicy);
+//                        }
+//                        ++changeCount;
+//                        break;
+//                    case EQUAL:
+//                        // This cell is the writeback cell. Value is the value
+//                        // written back.
+//                        d = writebackCell.newValue;
+//                        ++changeCount;
+//                        break;
+//                    case BELOW:
+//                        // This cell is above the writeback cell. Value is the
+//                        // current value plus the change in the writeback cell.
+//                        d = (double)d + writebackCell.getOffset();
+//                        ++changeCount;
+//                        break;
+//                    case NONE:
+//                        // Writeback cell is unrelated. It has no effect on
+//                        // cell's value.
+//                        break;
+//                    default:
+//                        throw Util.unexpected(relation);
+//                    }
+//                }
+//                // Don't create a new object if value has not changed.
+//                if (changeCount == 0) {
+//                    return o;
+//                } else {
+//                    return d;
+//                }
+//            } finally {
+//                evaluator.restore(savepoint);
+//            }
         }
     }
 }

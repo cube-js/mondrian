@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2002-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 
@@ -158,7 +159,7 @@ class OpeningClosingPeriodFunDef extends FunDefBase {
 
                 return getDescendant(
                     evaluator.getSchemaReader(), member,
-                    level, opening);
+                    level, opening, evaluator);
             }
         };
     }
@@ -180,7 +181,8 @@ class OpeningClosingPeriodFunDef extends FunDefBase {
         SchemaReader schemaReader,
         Member member,
         Level targetLevel,
-        boolean returnFirstDescendant)
+        boolean returnFirstDescendant,
+        Evaluator evaluator)
     {
         List<Member> children;
 

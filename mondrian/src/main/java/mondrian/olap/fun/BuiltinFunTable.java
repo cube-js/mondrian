@@ -6,6 +6,8 @@
 //
 // Copyright (C) 2002-2005 Julian Hyde
 // Copyright (C) 2005-2019 Hitachi Vantara and others
+// Copyright (C) 2021 Topsoft
+// Copyright (c) 2021-2023 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.olap.fun;
@@ -886,6 +888,8 @@ public class BuiltinFunTable extends FunTableImpl {
             }
         });
 
+        builder.define(NonEmptyFunDef.Resolver);
+
         builder.define(CrossJoinFunDef.Resolver);
         builder.define(NonEmptyCrossJoinFunDef.Resolver);
         builder.define(CrossJoinFunDef.StarResolver);
@@ -1218,6 +1222,27 @@ public class BuiltinFunTable extends FunTableImpl {
             }
         });
 
+        // <Member>.Member_Caption
+        builder.define(
+            new FunDefBase(
+                    "Member_Caption",
+                    "Returns the caption of a member.",
+                    "pSm")
+        {
+            public Calc compileCall(ResolvedFunCall call, ExpCompiler compiler)
+            {
+                final MemberCalc memberCalc =
+                        compiler.compileMember(call.getArg(0));
+                return new AbstractStringCalc(call, new Calc[] {memberCalc}) {
+                    public String evaluateString(Evaluator evaluator) {
+                        final Member member =
+                                memberCalc.evaluateMember(evaluator);
+                        return member.getCaption();
+                    }
+                };
+            }
+        });
+
         // <Dimension>.Name
         builder.define(
             new FunDefBase(
@@ -1371,6 +1396,27 @@ public class BuiltinFunTable extends FunTableImpl {
             }
         });
 
+        // <Member>.Level_Number
+        builder.define(
+                new FunDefBase(
+                        "Level_Number",
+                        "Returns the level number of a member.",
+                        "pim")
+                {
+                    public Calc compileCall(ResolvedFunCall call, ExpCompiler compiler)
+                    {
+                        final MemberCalc memberCalc =
+                                compiler.compileMember(call.getArg(0));
+                        return new AbstractIntegerCalc(call, new Calc[] {memberCalc}) {
+                            public int evaluateInteger(Evaluator evaluator) {
+                                final Member member =
+                                        memberCalc.evaluateMember(evaluator);
+                                return member.getLevel().getDepth();
+                            }
+                        };
+                    }
+                });
+
         // <Member>.UniqueName
         builder.define(
             new FunDefBase(
@@ -1391,6 +1437,27 @@ public class BuiltinFunTable extends FunTableImpl {
                 };
             }
         });
+
+        // <Member>.Unique_Name
+        builder.define(
+                new FunDefBase(
+                        "Unique_Name",
+                        "Returns the unique name of a member.",
+                        "pSm")
+                {
+                    public Calc compileCall(ResolvedFunCall call, ExpCompiler compiler)
+                    {
+                        final MemberCalc memberCalc =
+                                compiler.compileMember(call.getArg(0));
+                        return new AbstractStringCalc(call, new Calc[] {memberCalc}) {
+                            public String evaluateString(Evaluator evaluator) {
+                                final Member member =
+                                        memberCalc.evaluateMember(evaluator);
+                                return member.getUniqueName();
+                            }
+                        };
+                    }
+                });
 
         //
         // TUPLE FUNCTIONS
@@ -1607,6 +1674,27 @@ public class BuiltinFunTable extends FunTableImpl {
                         }
                     }
                 };
+            }
+        });
+
+        // <Set> - <Set>
+        builder.define(
+                new FunDefBase(
+                        "-",
+                        "Finds the difference between two sets.",
+                        "ixxx")
+        {
+            public Calc compileCall(ResolvedFunCall call, ExpCompiler compiler)
+            {
+                mondrian.mdx.UnresolvedFunCall unresolvedFunCall = new mondrian.mdx.UnresolvedFunCall(
+                        "Except",
+                        mondrian.olap.Syntax.Function,
+                        call.getArgs());
+
+                // ResolvedFunCall
+                Exp exp = unresolvedFunCall.accept(compiler.getValidator());
+
+                return compiler.compile(exp);
             }
         });
 

@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2004-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 
@@ -77,8 +78,7 @@ class DrilldownMemberFunDef extends FunDefBase {
                     Member member = tuple[k];
                     if (memberSet.contains(member)) {
                         List<Member> children =
-                            evaluator.getSchemaReader().getMemberChildren(
-                                member);
+                            evaluator.getSchemaReader().getMemberChildren( member );
                         final Member[] tuple2 = tuple.clone();
                         for (Member childMember : children) {
                             tuple2[k] = childMember;

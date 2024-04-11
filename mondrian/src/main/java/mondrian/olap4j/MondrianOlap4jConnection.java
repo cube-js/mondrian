@@ -5,6 +5,8 @@
 // You must accept the terms of that agreement to use this software.
 //
 // Copyright (C) 2002-2017 Hitachi Vantara and others
+// Copyright (C) 2020-2021 Topsoft
+// Copyright (c) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.olap4j;
@@ -92,8 +94,8 @@ public abstract class MondrianOlap4jConnection implements OlapConnection {
      * catalog. It is possible for a schema to be mapped more than once, with
      * different names; the same RolapSchema object will be used.
      */
-    final Map<mondrian.olap.Schema, MondrianOlap4jSchema> schemaMap =
-        new HashMap<mondrian.olap.Schema, MondrianOlap4jSchema>();
+    final Map<SchemaContentKey, MondrianOlap4jSchema> schemaMap =
+        new HashMap<SchemaContentKey, MondrianOlap4jSchema>();
 
     private final MondrianOlap4jDatabaseMetaData olap4jDatabaseMetaData;
 
@@ -117,6 +119,10 @@ public abstract class MondrianOlap4jConnection implements OlapConnection {
     final MondrianServer mondrianServer;
     private final MondrianOlap4jSchema olap4jSchema;
     private final NamedList<MondrianOlap4jDatabase> olap4jDatabases;
+
+    public MondrianOlap4jSchema getMondrianOlap4jSchema(){
+        return this.olap4jSchema;
+    }
 
     /**
      * Creates an Olap4j connection to Mondrian.
@@ -538,7 +544,7 @@ public abstract class MondrianOlap4jConnection implements OlapConnection {
     synchronized MondrianOlap4jSchema toOlap4j(
         mondrian.olap.Schema schema)
     {
-        MondrianOlap4jSchema olap4jSchema = schemaMap.get(schema);
+        MondrianOlap4jSchema olap4jSchema = schemaMap.get(((RolapSchema)schema).getKey().getKey());
         if (olap4jSchema == null) {
             throw new RuntimeException("schema not registered: " + schema);
         }
@@ -793,7 +799,7 @@ public abstract class MondrianOlap4jConnection implements OlapConnection {
         }
     }
 
-    RolapConnection getMondrianConnection() throws OlapException {
+    public RolapConnection getMondrianConnection() throws OlapException {
         final RolapConnection connection1 = mondrianConnection;
         if (connection1 == null) {
             throw helper.createException("Connection is closed.");

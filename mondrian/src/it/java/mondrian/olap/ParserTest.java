@@ -1033,14 +1033,14 @@ public class ParserTest extends FoodMartTestCase {
             Statement statement,
             Formula[] formulae,
             QueryAxis[] axes,
-            String cube,
+            Subcube subcube,
             Exp slicer,
             QueryPart[] cellProps,
             boolean strictValidation)
         {
             setFormulas(formulae);
             setAxes(axes);
-            setCube(cube);
+            setCube(subcube.getCubeName());
             setSlicer(slicer);
             setCellProps(cellProps);
             return null;
@@ -1059,8 +1059,42 @@ public class ParserTest extends FoodMartTestCase {
             return null;
         }
 
+        public CalculatedFormula makeCalculatedFormula(
+                String cubeName,
+                Formula e)
+        {
+            return null;
+        }
+
         public Explain makeExplain(QueryPart query) {
             this.explain = true;
+            return null;
+        }
+
+        public Refresh makeRefresh(
+                String cubeName)
+        {
+            return null;
+        }
+
+        public Update makeUpdate(
+                String cubeName,
+                List<Update.UpdateClause> list)
+        {
+            return null;
+        }
+
+        public DmvQuery makeDmvQuery(
+                String tableName,
+                List<String> columns,
+                Exp whereExpression)
+        {
+            return null;
+        }
+
+        public TransactionCommand makeTransactionCommand(
+                TransactionCommand.Command c)
+        {
             return null;
         }
 

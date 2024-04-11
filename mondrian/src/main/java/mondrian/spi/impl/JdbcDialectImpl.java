@@ -4,7 +4,9 @@
 // http://www.eclipse.org/legal/epl-v10.html.
 // You must accept the terms of that agreement to use this software.
 //
-// Copyright (c) 2002-2020 Hitachi Vantara.  All rights reserved.
+// Copyright (c) 2002-2020 Hitachi Vantara.
+// Copyright (C) 2021 Sergei Semenkov
+// All rights reserved.
 */
 package mondrian.spi.impl;
 
@@ -1051,6 +1053,8 @@ public class JdbcDialectImpl implements Dialect {
             return DatabaseProduct.ACCESS;
         } else if (upperProductName.trim().equals("APACHE DERBY")) {
             return DatabaseProduct.DERBY;
+        } else if (upperProductName.indexOf("CLICKHOUSE") >= 0) {
+            return DatabaseProduct.CLICKHOUSE;
         } else if (upperProductName.trim().equals("DBMS:CLOUDSCAPE")) {
             return DatabaseProduct.DERBY;
         } else if (productName.startsWith("DB2")) {
@@ -1240,6 +1244,10 @@ public class JdbcDialectImpl implements Dialect {
       javaRegex = javaRegex.substring( 0, flagsMatcher.start( 1 ) ) + javaRegex.substring( flagsMatcher.end( 1 ) );
     }
     return javaRegex;
+  }
+
+  public boolean requiresDrillthroughMaxRowsInLimit() {
+      return false;
   }
 }
 

@@ -8,6 +8,8 @@
   ==
   == Copyright (C) 2001-2005 Julian Hyde
   == Copyright (C) 2005-2019 Hitachi Vantara and others
+  == Copyright (C) 2019-2021 Topsoft
+  == Copyright (C) 2021-2024 Sergei Semenkov
   == All Rights Reserved.
   ==
   == This file defines an MMM schema for an Olap schema.
@@ -49,6 +51,7 @@ Revision is $Id$
             </Doc>
         </Attribute>
         <Attribute name="defaultRole" required="false">
+            <Reference xPath="/ancestor-or-self::Schema/Role" attribute="name"></Reference>
             <Doc>The name of the default role for connections to this schema</Doc>
         </Attribute>
         <Object name="annotations" type="Annotations" required="false">
@@ -57,6 +60,11 @@ Revision is $Id$
         <Array name="parameters" type="Parameter">
             <Doc>
                 This schema's parameter definitions.
+            </Doc>
+        </Array>
+        <Array name="views" type="View">
+            <Doc>
+                Views described at schema level.
             </Doc>
         </Array>
         <Array name="dimensions" type="Dimension">
@@ -229,6 +237,9 @@ Revision is $Id$
                 present, table name is left unqualified.
             </Doc>
         </Object>
+        <Array name="writebacks" type="WritebackTable" required="false">
+            <Doc>Contains definition of writeback tables.</Doc>
+        </Array>
         <Array name="dimensions" type="CubeDimension"><Doc></Doc></Array>
         <Array name="measures" type="Measure"><Doc></Doc></Array>
         <Array name="calculatedMembers" type="CalculatedMember">
@@ -241,6 +252,7 @@ Revision is $Id$
                 Named sets in this cube.
             </Doc>
         </Array>
+        <Array name="actions" type="Action"><Doc></Doc></Array>
         <Code><![CDATA[
             public boolean isEnabled() {
                 return enabled.booleanValue();
@@ -315,6 +327,7 @@ Revision is $Id$
                 Named sets in this cube.
             </Doc>
         </Array>
+        <Array name="actions" type="Action"><Doc></Doc></Array>
         <Code><![CDATA[
             public boolean isEnabled() {
                 return enabled.booleanValue();
@@ -408,6 +421,7 @@ Revision is $Id$
             Dimension within the context of a cube.
         </Doc>
         <Attribute name="source" required="true">
+            <Reference xPath="/ancestor::Schema/Dimension" attribute="name"></Reference>
             <Doc>Name of the source dimension. Must be a dimension in
             this schema. Case-sensitive.</Doc>
         </Attribute>
@@ -485,6 +499,8 @@ Revision is $Id$
                 This should only be set for private dimensions.
             </Doc>
         </Attribute>
+
+        <Array name="Attributes" type="DimensionAttribute"><Doc></Doc></Array>
 
         <Array name="hierarchies" type="Hierarchy"><Doc></Doc></Array>
         <Code>
@@ -587,11 +603,28 @@ Revision is $Id$
                 Can be localized from Properties file using #{propertyname}.
             </Doc>
         </Attribute>
+        <Attribute name="displayFolder" required="false">
+            <Doc>
+                The path to be used when displaying the hierarchy in the user interface.
+                Folder names will be separated by a semicolon (;). Nested folders are indicated by a backslash (\).
+            </Doc>
+        </Attribute>
         <Attribute name="uniqueKeyLevelName" required="false">
             <Doc>
 		        Should be set to the level (if such a level exists) at which depth it is known
 		        that all members have entirely unique rows, allowing SQL GROUP BY clauses to
                 be completely eliminated from the query.
+            </Doc>
+        </Attribute>
+        <Attribute name="origin" required="false">
+            <Doc>
+                A bit mask that determines the source of the hierarchy:
+                MD_ORIGIN_USER_DEFINED identifies levels in a user defined hierarchy (0x0000001).
+                MD_ORIGIN_ATTRIBUTE identifies levels in an attribute hierarchy (0x0000002).
+                MD_ORIGIN_INTERNAL identifies levels in attribute hierarchies that are not enabled (0x0000004).
+                MD_ORIGIN_KEY_ATTRIBUTE identifies levels in a key attribute hierarchy (0x0000008).
+
+                The default value is MD_ORIGIN_USER_DEFINED. For Measure it is MD_ORIGIN_ATTRIBUTE &amp; MD_ORIGIN_INTERNAL (0x0000006)
             </Doc>
         </Attribute>
 
@@ -983,6 +1016,11 @@ Revision is $Id$
                 more details, see the <a href="api/mondrian/util/Format.html">mondrian.util.Format</a> class.
             </Doc>
         </Attribute>
+        <Attribute name="backColor">
+            <Doc>
+                The background color for displaying the value or formatted value.
+            </Doc>
+        </Attribute>
         <Attribute name="aggregator" required="true">
             <Doc>
                 Aggregation function. Allowed values are "sum", "count", "min",
@@ -1019,6 +1057,12 @@ Revision is $Id$
             <Doc>
                 Whether this member is visible in the user-interface.
                 Default true.
+            </Doc>
+        </Attribute>
+        <Attribute name="displayFolder" required="false">
+            <Doc>
+                The path to be used when displaying the measure in the user interface.
+                Folder names will be separated by a semicolon. Nested folders are indicated by a backslash (\).
             </Doc>
         </Attribute>
         <Object name="annotations" type="Annotations" required="false">
@@ -1090,6 +1134,12 @@ Revision is $Id$
             <Doc>
                 Whether this member is visible in the user-interface.
                 Default true.
+            </Doc>
+        </Attribute>
+        <Attribute name="displayFolder" required="false">
+            <Doc>
+                The path to be used when displaying the member in the user interface.
+                Folder names will be separated by a semicolon. Nested folders are indicated by a backslash (\).
             </Doc>
         </Attribute>
         <Object name="annotations" type="Annotations" required="false">
@@ -1212,6 +1262,14 @@ Revision is $Id$
                 Can be localized from Properties file using #{propertyname}.
             </Doc>
         </Attribute>
+        <Attribute name="displayFolder" required="false">
+            <Doc>
+                A string that identifies the path of the display folder that the client application uses to show the set.
+                The folder level separator is defined by the client application.
+                For the tools and clients supplied by Analysis Services, the backslash (\) is the level separator.
+                To provide multiple display folders, use a semicolon (;) to separate the folders.
+            </Doc>
+        </Attribute>
         <Attribute name="formula" required="false">
             <Doc>
                 MDX expression which gives the value of this set.
@@ -1272,7 +1330,7 @@ Revision is $Id$
         </Code>
     </Element>
 
-    <Element type="View" class="Relation">
+    <Element type="View" class="Relation" schemaCaptionAttribute="alias">
         <Doc>
             A collection of SQL statements, one per dialect.
         </Doc>
@@ -1350,38 +1408,38 @@ Revision is $Id$
                 Dialect of SQL the view is intended for. Valid values include,
                 but are not limited to:
                 <ul>
-                <li>generic</li>
-                <li>access</li>
-                <li>db2</li>
-                <li>derby</li>
-                <li>firebird</li>
-                <li>googlebigquery</li>
-                <li>greenplum</li>
-                <li>hsqldb</li>
-                <li>hive</li>
-                <li>impala</li>
-                <li>infobright</li>
-                <li>informix</li>
-                <li>ingres</li>
-                <li>interbase</li>
-                <li>luciddb</li>
-                <li>mariadb</li>
-                <li>monetdb</li>
-                <li>mssql</li>
-                <li>mysql</li>
-                <li>neoview</li>
-                <li>netezza</li>
-                <li>nuodb</li>
-                <li>oracle</li>
-                <li>pdi</li>
-                <li>postgres</li>
-                <li>redshift</li>
-                <li>snowflake</li>
-                <li>sqlstream</li>
-                <li>sybase</li>
-                <li>teradata</li>
-                <li>vectorwise</li>
-                <li>vertica</li>
+                    <li>generic</li>
+                    <li>access</li>
+                    <li>db2</li>
+                    <li>derby</li>
+                    <li>firebird</li>
+                    <li>googlebigquery</li>
+                    <li>greenplum</li>
+                    <li>hsqldb</li>
+                    <li>hive</li>
+                    <li>impala</li>
+                    <li>infobright</li>
+                    <li>informix</li>
+                    <li>ingres</li>
+                    <li>interbase</li>
+                    <li>luciddb</li>
+                    <li>mariadb</li>
+                    <li>monetdb</li>
+                    <li>mssql</li>
+                    <li>mysql</li>
+                    <li>neoview</li>
+                    <li>netezza</li>
+                    <li>nuodb</li>
+                    <li>oracle</li>
+                    <li>pdi</li>
+                    <li>postgres</li>
+                    <li>redshift</li>
+                    <li>snowflake</li>
+                    <li>sqlstream</li>
+                    <li>sybase</li>
+                    <li>teradata</li>
+                    <li>vectorwise</li>
+                    <li>vertica</li>
                 </ul>
             </Doc>
         </Attribute>
@@ -1412,6 +1470,29 @@ Revision is $Id$
                 return codeSet;
             }
             ]]>
+        </Code>
+    </Element>
+
+    <Element type="SchemaView" class="Relation">
+        <Doc>
+            Link to a schema level view.
+        </Doc>
+        <Attribute name="source" required="true">
+            <Reference xPath="/ancestor::Schema/View" attribute="alias"></Reference>
+        </Attribute>
+        <Attribute name="alias" required="true"/>
+        <Code>
+            public SchemaView find(String seekAlias) {
+                if (seekAlias.equals(alias)) {
+                    return this;
+                } else {
+                    return null;
+                }
+            }
+
+            public String getAlias() {
+                return alias;
+            }
         </Code>
     </Element>
 
@@ -2123,6 +2204,7 @@ Revision is $Id$
         </Object>
         <Array name="schemaGrants" type="SchemaGrant"/>
         <Object name="union" type="Union" required="false" />
+        <Array name="members" type="RoleMember"/>
     </Element>
 
     <Class class="Grant">
@@ -2162,6 +2244,7 @@ Revision is $Id$
             See <a href="api/mondrian/olap/Role.html#grant(mondrian.olap.Cube, int)">mondrian.olap.Role#grant(mondrian.olap.Cube,int)</a>.
         </Doc>
         <Attribute name="cube" required="true">
+            <Reference xPath="/ancestor::Schema/Cube" attribute="name"></Reference>
             <Doc>The unique name of the cube</Doc>
         </Attribute>
         <Array name="dimensionGrants" type="DimensionGrant"/>
@@ -2238,6 +2321,12 @@ Revision is $Id$
         </Attribute>
     </Element>
 
+    <Element type="RoleMember">
+        <Doc>
+            User name or member group name.
+        </Doc>
+        <Attribute name="name" required="true"/>
+    </Element>
     <!-- Union ============================================================ -->
     <Element type="Union">
         <Doc>
@@ -2415,6 +2504,251 @@ Revision is $Id$
             or by a script.
         </Doc>
     </Element>
+
+    <!-- Action ============================================== -->
+    <Element type="DrillThroughColumn" abstract="true">
+        <Doc>
+            Base class for drillthrough columns.
+        </Doc>
+    </Element>
+
+    <Element type="DrillThroughAttribute" class="DrillThroughColumn">
+        <Doc>
+        </Doc>
+        <Attribute name="name" required="true">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="dimension" required="true">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="hierarchy" required="true">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="level" required="true">
+            <Doc></Doc>
+        </Attribute>
+    </Element>
+
+    <Element type="DrillThroughMeasure" class="DrillThroughColumn">
+        <Doc>
+        </Doc>
+        <Attribute name="name" required="true">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="measure" required="true">
+            <Doc>Name of a measure.</Doc>
+        </Attribute>
+    </Element>
+
+    <Element type="Action" abstract="true">
+        <Doc>
+            Definition of a cube action.
+        </Doc>
+        <Attribute name="name" required="true">
+            <Doc>
+                Name of this cube action.
+            </Doc>
+        </Attribute>
+        <Attribute name="caption" required="false">
+            <Doc>
+                Caption of this action.
+            </Doc>
+        </Attribute>
+        <Attribute name="description" required="false">
+            <Doc>
+                Description of this action.
+            </Doc>
+        </Attribute>
+        <Object name="annotations" type="Annotations" required="false">
+            <Doc>Contains values of user-defined properties.</Doc>
+        </Object>
+    </Element>
+
+    <Element type="DrillThroughAction" class="Action">
+        <Doc>
+        </Doc>
+        <Attribute name="default" required="false" type="Boolean">
+            <Doc>
+                Set true if this action is the default DrillThrough action.
+            </Doc>
+        </Attribute>
+        <Array name="columns" type="DrillThroughColumn"><Doc></Doc></Array>
+    </Element>
+
+    <!-- `Writeback` ============================================== -->
+    <Element type="WritebackColumn" abstract="true">
+        <Doc>
+            Base class for Writeback columns.
+        </Doc>
+    </Element>
+
+    <Element type="WritebackAttribute" class="WritebackColumn">
+        <Doc>
+        </Doc>
+        <Attribute name="dimension" required="true">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="column" required="true">
+            <Doc></Doc>
+        </Attribute>
+    </Element>
+
+    <Element type="WritebackMeasure" class="WritebackColumn">
+        <Doc>
+        </Doc>
+        <Attribute name="name" required="true">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="column" required="true">
+            <Doc></Doc>
+        </Attribute>
+    </Element>
+
+    <Element type="WritebackTable">
+        <Doc>
+            Definition of a cube writeback.
+        </Doc>
+        <Attribute name="name" required="true"/>
+        <Attribute name="schema">
+            <Doc>
+                Optional qualifier for <code>table</code>.
+            </Doc>
+        </Attribute>
+        <Array name="columns" type="WritebackColumn"><Doc></Doc></Array>
+        <Object name="annotations" type="Annotations" required="false">
+            <Doc>Contains values of user-defined properties.</Doc>
+        </Object>
+    </Element>
+
+    <!-- DimensionAttribute ============================================== -->
+    <Element type="DimensionAttribute" >
+        <Doc>
+        </Doc>
+        <Attribute name="name" type="String" required="true">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="id" type="String">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="description" type="String">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="usage">
+            <Doc></Doc>
+            <Value>Regular</Value>
+            <Value>Key</Value>
+            <Value>Parent</Value>
+        </Attribute>
+        <Attribute name="estimatedCount" type="Long">
+            <Doc></Doc>
+        </Attribute>
+        <Array name="keyColumns" type="DataItem">
+            <Doc></Doc>
+        </Array>
+        <Object name="nameColumn" type="DataItem">
+            <Doc></Doc>
+        </Object>
+        <Object name="valueColumn" type="DataItem">
+            <Doc></Doc>
+        </Object>
+        <Attribute name="orderBy">
+            <Doc></Doc>
+            <Value>Key</Value>
+            <Value>Name</Value>
+            <Value>AttributeKey</Value>
+            <Value>AttributeName</Value>
+        </Attribute>
+        <Attribute name="defaultMember" type="String">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="isAggregatable" type="Boolean">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="attributeHierarchyEnabled" type="Boolean">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="attributeHierarchyVisible" type="Boolean">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="attributeHierarchyDisplayFolder" type="String">
+            <Doc></Doc>
+        </Attribute>
+    </Element>
+
+    <Element type="DataItem" >
+        <Doc>
+        </Doc>
+        <Attribute name="dataType" required="true">
+            <Doc></Doc>
+            <Value>WChar</Value>
+            <Value>Integer</Value>
+            <Value>BigInt</Value>
+            <Value>Single</Value>
+            <Value>Double</Value>
+            <Value>Date</Value>
+            <Value>Currency</Value>
+            <Value>UnsignedTinyInt</Value>
+            <Value>UnsignedSmallInt</Value>
+            <Value>UnsignedInt</Value>
+            <Value>UnsignedBigInt</Value>
+            <Value>Bool</Value>
+            <Value>Smallint</Value>
+            <Value>Tinyint</Value>
+            <Value>Binary</Value>
+        </Attribute>
+        <Attribute name="dataSize" type="Integer">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="mimeType" type="String">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="nullProcessing">
+            <Doc></Doc>
+            <Value>Preserve</Value>
+            <Value>Error</Value>
+            <Value>UnknownMember</Value>
+            <Value>ZeroOrBlank</Value>
+            <Value>Automatic</Value>
+        </Attribute>
+        <Attribute name="trimming">
+            <Doc></Doc>
+            <Value>Left</Value>
+            <Value>Right</Value>
+            <Value>LeftRight</Value>
+            <Value>None</Value>
+        </Attribute>
+        <Attribute name="invalidXmlCharacters">
+            <Doc></Doc>
+            <Value>Preserve</Value>
+            <Value>Remove</Value>
+            <Value>Replace</Value>
+        </Attribute>
+        <Attribute name="collation" type="String">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="format">
+            <Doc></Doc>
+            <Value>TrimRight</Value>
+            <Value>TrimLeft</Value>
+            <Value>TrimAll</Value>
+            <Value>TrimNone</Value>
+        </Attribute>
+        <Object name="source" type="ColumnBinding">
+            <Doc></Doc>
+        </Object>
+    </Element>
+
+    <Element type="ColumnBinding" >
+        <Doc>
+        </Doc>
+        <Attribute name="tableID" type="String" required="true">
+            <Doc></Doc>
+        </Attribute>
+        <Attribute name="columnID" type="String" required="true">
+            <Doc></Doc>
+        </Attribute>
+    </Element>
+
 </Model>
 
 <!-- End Mondrian.xml -->

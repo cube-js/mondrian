@@ -4,7 +4,8 @@
 // http://www.eclipse.org/legal/epl-v10.html.
 // You must accept the terms of that agreement to use this software.
 //
-// Copyright (c) 2002-2021 Hitachi Vantara..  All rights reserved.
+// Copyright (c) 2002-2020 Hitachi Vantara..  All rights reserved.
+// Copyright (c) 2021-2022 Sergei Semenkov.  All rights reserved.
 */
 package mondrian.rolap;
 
@@ -508,7 +509,7 @@ public class SqlStatement {
    */
   public ResultSet getWrappedResultSet() {
     return (ResultSet) Proxy.newProxyInstance(
-      ResultSet.class.getClassLoader(),
+      this.getClass().getClassLoader(),
       new Class<?>[] { ResultSet.class },
       new MyDelegatingInvocationHandler( this ) );
   }
@@ -573,6 +574,9 @@ public class SqlStatement {
     Object get() throws SQLException;
   }
 
+  public static java.util.HashMap<Statement, mondrian.rolap.RolapDrillThroughAction> DrillThroughResults =
+          new java.util.HashMap<Statement, mondrian.rolap.RolapDrillThroughAction>();
+
   /**
    * Reflectively implements the {@link ResultSet} interface by routing method calls to the result set inside a {@link
    * mondrian.rolap.SqlStatement}. When the result set is closed, so is the SqlStatement, and hence the JDBC connection
@@ -609,7 +613,11 @@ public class SqlStatement {
      * @throws SQLException on error
      */
     public void close() throws SQLException {
+      Statement statment = sqlStatement.getResultSet().getStatement();
       sqlStatement.close();
+      if(SqlStatement.DrillThroughResults.containsKey(statment)) {
+        SqlStatement.DrillThroughResults.remove(statment);
+      }
     }
   }
 

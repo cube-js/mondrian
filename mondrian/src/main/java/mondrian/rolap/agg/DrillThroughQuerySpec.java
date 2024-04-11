@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2005-2005 Julian Hyde
 // Copyright (C) 2005-2018 Hitachi Vantara
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap.agg;
@@ -189,7 +190,26 @@ class DrillThroughQuerySpec extends AbstractQuerySpec {
         SqlQuery sqlQuery = newSqlQuery();
         nonDistinctGenerateSql(sqlQuery);
         appendInapplicableFields(sqlQuery);
+        if(this.request.getMaxRowCount() > 0) {
+            sqlQuery.addRowLimit(this.request.getMaxRowCount());
+        }
         return sqlQuery.toSqlAndTypes();
+    }
+
+    @Override
+    protected List<RolapStar.Column> getItems() {
+        List<RolapStar.Column> items = super.getItems();
+        List<RolapStar.Column> sortedItems = new ArrayList<RolapStar.Column>();
+        for(RolapStar.Column item: this.request.getDrillThroughItems()) {
+            if(items.contains(item)) {
+                sortedItems.add(item);
+                items.remove(item);
+            }
+        }
+        for(RolapStar.Column item:items) {
+            sortedItems.add(item);
+        }
+        return sortedItems;
     }
 
     /**

@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2003-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.olap;
@@ -388,6 +389,11 @@ public interface SchemaReader {
     List<Member> getLevelMembers(
         Level level,
         boolean includeCalculated);
+
+    List<Member> getLevelMembers(
+        Level level,
+        boolean includeCalculated,
+        Evaluator context);
 
     /**
      * Returns the members of a level, optionally filtering out members which

@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2003-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -578,7 +579,12 @@ public class RolapSchemaReader
 
     public List<Member> getLevelMembers(Level level, boolean includeCalculated)
     {
-        List<Member> members = getLevelMembers(level, null);
+        return getLevelMembers(level, includeCalculated, null);
+    }
+
+    public List<Member> getLevelMembers(Level level, boolean includeCalculated, Evaluator context)
+    {
+        List<Member> members = getLevelMembers(level, context);
         if (!includeCalculated) {
             members = SqlConstraintUtils.removeCalculatedMembers(members);
         }

@@ -73,6 +73,8 @@ public interface Hierarchy extends OlapElement, Annotated {
      * @return Unique name of hierarchy.
      */
     String getUniqueNameSsas();
+
+    String getDisplayFolder();
 }
 
 // End Hierarchy.java

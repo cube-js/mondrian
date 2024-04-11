@@ -4,7 +4,9 @@
 // http://www.eclipse.org/legal/epl-v10.html.
 // You must accept the terms of that agreement to use this software.
 //
-// Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+// Copyright (c) 2002-2017 Hitachi Vantara.
+// Copyright (C) 2021 Sergei Semenkov
+// All rights reserved.
 */
 package mondrian.rolap.agg;
 
@@ -22,6 +24,9 @@ import java.util.List;
  */
 public class DrillThroughCellRequest extends CellRequest {
 
+    private final List<RolapStar.Column> drillThroughItems =
+            new ArrayList<RolapStar.Column>();
+
     private final List<RolapStar.Column> drillThroughColumns =
         new ArrayList<RolapStar.Column>();
 
@@ -37,8 +42,19 @@ public class DrillThroughCellRequest extends CellRequest {
         this.nonApplicableMembers = nonApplicableFields;
     }
 
+    private int maxRowCount;
+
+    public void setMaxRowCount(int maxRowCount) {
+        this.maxRowCount = maxRowCount;
+    }
+
+    public int getMaxRowCount() {
+        return this.maxRowCount;
+    }
+
     public void addDrillThroughColumn(RolapStar.Column column) {
         this.drillThroughColumns.add(column);
+        this.drillThroughItems.add(column);
     }
 
     public boolean includeInSelect(RolapStar.Column column) {
@@ -52,6 +68,7 @@ public class DrillThroughCellRequest extends CellRequest {
 
     public void addDrillThroughMeasure(RolapStar.Measure measure) {
         this.drillThroughMeasures.add(measure);
+        this.drillThroughItems.add(measure);
     }
 
     public boolean includeInSelect(RolapStar.Measure measure) {
@@ -70,6 +87,8 @@ public class DrillThroughCellRequest extends CellRequest {
     public List<OlapElement> getNonApplicableMembers() {
         return nonApplicableMembers;
     }
+
+    public List<RolapStar.Column> getDrillThroughItems() { return this.drillThroughItems; }
 }
 
 // End DrillThroughCellRequest.java

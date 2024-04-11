@@ -5,6 +5,8 @@
 // You must accept the terms of that agreement to use this software.
 //
 // Copyright (C) 2002-2018 Hitachi Vantara and others
+// Copyright (C) 2020-2021 Topsoft
+// Copyright (c) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.olap4j;
@@ -187,6 +189,12 @@ class MondrianOlap4jExtra implements XmlaHandler.XmlaExtra {
         MondrianOlap4jLevel olap4jLevel =
             (MondrianOlap4jLevel) nonAllFirstLevel;
         return ((RolapLevel) olap4jLevel.level).isParentChild();
+    }
+
+    public String getMeasureDisplayFolder(Member member) {
+        MondrianOlap4jMeasure olap4jMeasure =
+                (MondrianOlap4jMeasure) member;
+        return olap4jMeasure.getDisplayFolder();
     }
 
     public int getMeasureAggregator(Member member) {

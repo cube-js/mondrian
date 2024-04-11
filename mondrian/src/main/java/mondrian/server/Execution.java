@@ -330,7 +330,7 @@ public class Execution {
   public void unregisterSegmentRequests() {
     // We also have to cancel all requests for the current segments.
     final Locus locus = new Locus( this, "Execution.unregisterSegmentRequests", "cleaning up segment registrations" );
-    final SegmentCacheManager mgr = locus.getServer().getAggregationManager().cacheMgr;
+    final SegmentCacheManager mgr = locus.getServer().getAggregationManager().getCacheMgr(null);
     mgr.execute( new SegmentCacheManager.Command<Void>() {
       public Void call() throws Exception {
         mgr.getIndexRegistry().cancelExecutionSegments( Execution.this );

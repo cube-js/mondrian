@@ -5,6 +5,7 @@
 // You must accept the terms of that agreement to use this software.
 //
 // Copyright (C) 2010-2011 Pentaho
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 options {
@@ -209,11 +210,16 @@ TOKEN :
     <AND: "AND">
     | <AS: "AS">
     | <AXIS: "AXIS">
+    | <BEGIN: "BEGIN">
+    | <BY: "BY">
     | <CASE: "CASE">
     | <CAST: "CAST">
     | <CELL: "CELL">
     | <CHAPTERS: "CHAPTERS">
+    | <CREATE: "CREATE">
     | <COLUMNS: "COLUMNS">
+    | <COMMIT: "COMMIT">
+    | <CUBE: "CUBE">
     | <DIMENSION: "DIMENSION">
     | <DRILLTHROUGH: "DRILLTHROUGH">
     | <ELSE: "ELSE">
@@ -236,17 +242,28 @@ TOKEN :
     | <PAGES: "PAGES">
     | <PLAN: "PLAN">
     | <PROPERTIES: "PROPERTIES">
+    | <REFRESH: "REFRESH">
     | <RETURN: "RETURN">
+    | <ROLLBACK: "ROLLBACK">
     | <ROWS: "ROWS">
     | <SECTIONS: "SECTIONS">
     | <SELECT: "SELECT">
+    | <SESSION: "SESSION">
     | <SET: "SET">
     | <THEN: "THEN">
+    | <TRAN: "TRAN">
+    | <TRANSACTION: "TRANSACTION">
+    | <UPDATE: "UPDATE">
+    | <USE_EQUAL_ALLOCATION: "USE_EQUAL_ALLOCATION">
+    | <USE_EQUAL_INCREMENT: "USE_EQUAL_INCREMENT">
+    | <USE_WEIGHTED_ALLOCATION: "USE_WEIGHTED_ALLOCATION">
+    | <USE_WEIGHTED_INCREMENT: "USE_WEIGHTED_INCREMENT">
     | <WHEN: "WHEN">
     | <WHERE: "WHERE">
     | <XOR: "XOR">
     | <WITH: "WITH">
     | <EXISTING: "EXISTING">
+    | <$SYSTEM: "$SYSTEM">
 }
 
 // White space
@@ -322,6 +339,7 @@ TOKEN :
     | < RBRACE : "}" >
     | < RPAREN : ")" >
     | < SOLIDUS : "/" >
+    | < ATSIGN : "@" >
 }
 
 // Literals
@@ -461,6 +479,9 @@ Id.NameSegment nameSegment() :
     }
 |   <ID> {
         return new Id.NameSegment(token.image, Id.Quoting.UNQUOTED);
+    }
+|   <ATSIGN><ID> {
+        return new Id.NameSegment("@" + token.image, Id.Quoting.UNQUOTED);
     }
 |   <QUOTED_ID> {
         return new Id.NameSegment(
@@ -991,11 +1012,23 @@ QueryPart statement() :
 }
 {
     (
+        LOOKAHEAD(dmvSelectStatement())
+        //TODO: look ahead for <$SYSTEM>
+        qp = dmvSelectStatement()
+    |
         qp = selectStatement()
+    |
+        qp = createFormula()
     |
         qp = drillthroughStatement()
     |
         qp = explainStatement()
+    |
+        qp = refreshStatement()
+    |
+        qp = updateStatement()
+    |
+        qp = transactionCommandStatement()
     )
     {
         return qp;
@@ -1015,6 +1048,37 @@ QueryPart selectOrDrillthroughStatement() :
     }
 }
 
+QueryPart dmvSelectStatement() :
+{
+    Id.NameSegment tableId;
+    Id c;
+    List<Id> columns = new ArrayList<Id>();
+    Exp w = null;
+}
+{
+    <SELECT>
+    (
+        c = compoundId() { columns.add(c); }
+        (
+            <COMMA>
+            c = compoundId() { columns.add(c); }
+        )*
+
+    )?
+    <FROM> <$SYSTEM><DOT>tableId = nameSegment()
+    (
+        <WHERE> w = expression()
+    )?
+    {
+        String tableName = tableId.name;
+        List<String> returnList = new ArrayList<String>();
+        for(Id id: columns) {
+            returnList.add(((Id.NameSegment) id.getElement(0)).name);
+        }
+        return factory.makeDmvQuery(tableName, returnList, w);
+    }
+}
+
 Query selectStatement() :
 {
      Formula e;
@@ -1022,6 +1086,7 @@ Query selectStatement() :
      Exp w = null;
      QueryAxis i;
      List<QueryAxis> a = new ArrayList<QueryAxis>();
+     Subcube subcube;
      Id c, p;
      List<QueryPart> cellPropList = new ArrayList<QueryPart>();
 }
@@ -1050,7 +1115,7 @@ Query selectStatement() :
             }
         )*
     )?
-    <FROM> c = compoundId()
+    <FROM> subcube = selectSubcubeClause()
     (
         <WHERE> w = expression()
     )?
@@ -1070,15 +1135,191 @@ Query selectStatement() :
     {
         // We want 'Sales', not '[Sales]', and can't handle 'Schema.Sales'
         // yet.
-        String cubeName = ((Id.NameSegment) c.getElement(0)).name;
+        String cubeName = subcube.getCubeName();
         return factory.makeQuery(
             statement,
             toFormulaArray(f),
             toQueryAxisArray(a),
-            cubeName,
+            subcube,
             w,
             toQueryPartArray(cellPropList),
             strictValidation);
+    }
+}
+
+Subcube selectSubcubeClause() :
+{
+     Id c = null;
+     QueryAxis i;
+     List<QueryAxis> a = new ArrayList<QueryAxis>();
+     Subcube subcube = null;
+     Exp w = null;
+}
+{
+    (
+        c = compoundId()
+        |
+        <LPAREN> <SELECT>
+        (
+            (
+                i = axisSpecification() {
+                    a.add(i);
+                }
+                (
+                    <COMMA>
+                    i = axisSpecification() {
+                        a.add(i);
+                    }
+                )*
+            )
+            |
+            (
+                <ASTERISK>
+            )?
+        )
+        <FROM> subcube = selectSubcubeClause()
+        (
+            <WHERE> w = expression()
+        )?
+        <RPAREN>
+    )
+    {
+        String cubeName = null;
+        if(c != null) {
+            cubeName = ((Id.NameSegment) c.getElement(0)).name;
+        }
+        final QueryAxis slicerAxis =
+            w == null
+                ? null
+                : new QueryAxis(
+                    false, w, AxisOrdinal.StandardAxisOrdinal.SLICER,
+                    QueryAxis.SubtotalVisibility.Undefined, new Id[0]);
+        return new Subcube(
+            cubeName,
+            subcube,
+            toQueryAxisArray(a),
+            slicerAxis);
+    }
+}
+
+QueryPart createFormula() :
+{
+    boolean isMember = true;
+    Id.NameSegment cubeId;
+    Id m;
+    Exp e;
+    List<MemberProperty> l = new ArrayList<MemberProperty>();
+    MemberProperty mp;
+}
+{
+    <CREATE> <SESSION>
+    (
+        <MEMBER>
+        |
+        <SET> { isMember = false; }
+    )
+    cubeId = nameSegment()<DOT>
+    m = compoundId() <AS> e = formulaExpression()
+    (
+        <COMMA>
+        mp = memberPropertyDefinition() {
+            l.add(mp);
+        }
+    )*
+    {
+        String cubeName = cubeId.name;
+        Formula formula;
+        if(isMember) {
+            formula = new Formula(m, e, toMemberPropertyArray(l));
+        }
+        else {
+            formula = new Formula(m, e);
+        }
+        return factory.makeCalculatedFormula(cubeName, formula);
+    }
+}
+
+QueryPart refreshStatement() :
+{
+     Id c;
+}
+{
+    <REFRESH> <CUBE>  c = compoundId()
+    {
+        String cubeName = ((Id.NameSegment) c.getElement(0)).name;
+        return factory.makeRefresh(cubeName);
+    }
+}
+
+QueryPart updateStatement() :
+{
+    Id c;
+    Update.UpdateClause uc;
+    List<Update.UpdateClause> list = new ArrayList<Update.UpdateClause>();
+}
+{
+    <UPDATE> (<CUBE>)?  c = compoundId()
+    <SET>
+    uc = updateClause() {
+        list.add(uc);
+    }
+    (
+        <COMMA>
+        uc = updateClause() {
+            list.add(uc);
+        }
+    )*
+    {
+        String cubeName = ((Id.NameSegment) c.getElement(0)).name;
+        return factory.makeUpdate(cubeName, list);
+    }
+}
+
+Update.UpdateClause updateClause() :
+{
+    Exp t, v, w = null;
+    Update.Allocation a = Update.Allocation.NO_ALLOCATION;
+}
+{
+
+    t = primary()
+    <EQ>
+    v = unaliasedExpression()
+    (
+        <USE_EQUAL_ALLOCATION>
+        { a = Update.Allocation.USE_EQUAL_ALLOCATION; }
+        |
+        <USE_EQUAL_INCREMENT>
+        { a = Update.Allocation.USE_EQUAL_INCREMENT; }
+        |
+        <USE_WEIGHTED_ALLOCATION>
+        { a = Update.Allocation.USE_WEIGHTED_ALLOCATION; }
+        (<BY> w = unaliasedExpression())?
+        |
+        <USE_WEIGHTED_INCREMENT>
+        { a = Update.Allocation.USE_WEIGHTED_INCREMENT; }
+        (<BY> w = unaliasedExpression())?
+    )?
+    {
+        return new Update.UpdateClause(t, v, a, w);
+    }
+}
+
+QueryPart transactionCommandStatement() :
+{
+     TransactionCommand.Command c;
+}
+{
+    (
+        <BEGIN>  { c = TransactionCommand.Command.BEGIN; }
+        |
+        <COMMIT>  { c = TransactionCommand.Command.COMMIT; }
+        |
+        <ROLLBACK>  { c = TransactionCommand.Command.ROLLBACK; }
+    )
+    (<TRANSACTION> | <TRAN>)
+    {
+        return factory.makeTransactionCommand(c);
     }
 }
 

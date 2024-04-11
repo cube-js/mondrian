@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2005-2018 Hitachi Vantara and others
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
 //
 // jhyde, 12 August, 2001
@@ -169,20 +170,20 @@ public class RolapStar {
         return null;
     }
 
-    public Object getCellFromAllCaches(final CellRequest request) {
+    public Object getCellFromAllCaches(final CellRequest request, RolapConnection rolapConnection) {
         // First, try the local/thread cache.
         Object result = getCellFromCache(request, null);
         if (result != null) {
             return result;
         }
         // Now ask the segment cache manager.
-        return getCellFromExternalCache(request);
+        return getCellFromExternalCache(request, rolapConnection);
     }
 
-    private Object getCellFromExternalCache(CellRequest request) {
+    private Object getCellFromExternalCache(CellRequest request, RolapConnection rolapConnection) {
         final SegmentWithData segment =
             Locus.peek().getServer().getAggregationManager()
-                .cacheMgr.peek(request);
+                .getCacheMgr(rolapConnection).peek(request);
         if (segment == null) {
             return null;
         }
@@ -1746,7 +1747,6 @@ public class RolapStar {
             boolean failIfExists,
             boolean joinToParent)
         {
-            query.addFrom(relation, alias, failIfExists);
             Util.assertTrue((parent == null) == (joinCondition == null));
             if (joinToParent) {
                 if (parent != null) {
@@ -1756,6 +1756,7 @@ public class RolapStar {
                     query.addWhere(joinCondition.toString(query));
                 }
             }
+            query.addFrom(relation, alias, failIfExists);
         }
 
         /**

@@ -7,6 +7,8 @@
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2004-2005 TONBELLER AG
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2022 Sergei Semenkov
+// Copyright (C) 2023 Riccardo Gusmeroli
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -56,6 +58,8 @@ public class MemberCacheHelper implements MemberCache {
     /** maps a level to its members */
     final SmartMemberListCache<RolapLevel, List<RolapMember>>
         mapLevelToMembers;
+
+    final ArrayList<RolapLevel> cachedLevels = new ArrayList<>();
 
     /**
      * Creates a MemberCacheHelper.
@@ -158,18 +162,23 @@ public class MemberCacheHelper implements MemberCache {
     private List<RolapMember> findNamedChildrenInCache(
         final RolapMember parent, final List<String> childNames)
     {
-        List<RolapMember> children =
-            checkDefaultAndNamedChildrenCache(parent);
-        if (children == null || childNames == null
-            || childNames.size() > children.size())
-        {
-            return null;
+        if(childNames != null) {
+            ArrayList<RolapMember> children =  new ArrayList<RolapMember>();
+            for(String childName: childNames) {
+                RolapMember childMember = mapKeyToMember.get(this.makeKey(parent, childName));
+                if(childMember != null) {
+                    ArrayList<RolapMember> list = new ArrayList<RolapMember>();
+                    children.add(childMember);
+                }
+                else {
+                    break;
+                }
+            }
+            if(children.size() == childNames.size()) {
+                return children;
+            }
         }
-
-        List<RolapMember> foundElements =
-          children.parallelStream().filter( member -> childNames.contains( ( (RolapMember) member ).getName() ) )
-            .collect( Collectors.toList() );
-        return childNames.size() == foundElements.size() ? foundElements : null;
+        return null;
     }
 
     private List<RolapMember> checkDefaultAndNamedChildrenCache(
@@ -229,16 +238,25 @@ public class MemberCacheHelper implements MemberCache {
         return mapLevelToMembers.get(level, constraint);
     }
 
+    public void setLevelAsCached(RolapLevel rolapLevel) {
+        if(!this.cachedLevels.contains(rolapLevel)) {
+            this.cachedLevels.add(rolapLevel);
+        }
+    }
+
     // Must sync here because we want the three maps to be modified together.
     public synchronized void flushCache() {
         mapMemberToChildren.clear();
         mapKeyToMember.clear();
         mapLevelToMembers.clear();
         mapParentToNamedChildren.clear();
-        // We also need to clear the approxRowCount of each level.
-        for (Level level : rolapHierarchy.getLevels()) {
-            ((RolapLevel)level).setApproxRowCount(Integer.MIN_VALUE);
-        }
+        cachedLevels.clear();
+
+        // We also need (why?) to clear the approxRowCount of each level.
+        // But it leads to losing of approxRowCount value from schema
+//        for (Level level : rolapHierarchy.getLevels()) {
+//            ((RolapLevel)level).setApproxRowCount(Integer.MIN_VALUE);
+//        }
     }
 
     public DataSourceChangeListener getChangeListener() {

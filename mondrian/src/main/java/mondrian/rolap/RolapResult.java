@@ -6,6 +6,8 @@
 //
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2005-2021 Hitachi Vantara and others
+// Copyright (C) 2021-2022 Sergei Semenkov
+// Copyright (C) 2023 Riccardo Gusmeroli
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -81,6 +83,8 @@ import mondrian.util.CancellationChecker;
 import mondrian.util.Format;
 import mondrian.util.ObjectPool;
 
+import java.io.PrintWriter;
+
 /**
  * A <code>RolapResult</code> is the result of running a query.
  *
@@ -133,6 +137,7 @@ public class RolapResult extends ResultBase {
       }
     }
     RolapCube cube = (RolapCube) query.getCube();
+
     this.batchingReader = new FastBatchingCellReader( execution, cube, aggMgr );
 
     this.cellInfos = ( query.axes.length > 4 ) ? new CellInfoMap( point ) : new CellInfoPool( query.axes.length );
@@ -253,6 +258,123 @@ public class RolapResult extends ResultBase {
       // List of Measures
       final List<Member> measureMembers = new ArrayList<Member>();
 
+      /////////////////////////////////////////////////////////////////
+      // Determine Subcube
+      //
+      HashMap<Hierarchy, HashMap<Member, Member>> subcubeHierarchies = new HashMap<Hierarchy, HashMap<Member, Member>>();
+
+      for(Map.Entry<Hierarchy, Calc> entry : query.subcubeHierarchyCalcs.entrySet()) {
+        Hierarchy hierarchy = entry.getKey();
+        mondrian.olap.Level[] levels = hierarchy.getLevels();
+        mondrian.olap.Level lastLevel = levels[levels.length - 1];
+
+        Calc calc = entry.getValue();
+
+        HashMap<Member, Member> subcubeHierarchyMembers = new HashMap<Member, Member>();
+
+        mondrian.olap.type.Type memberType1 =
+                new mondrian.olap.type.MemberType(
+                        hierarchy.getDimension(),
+                        hierarchy,
+                        null,
+                        null);
+        SetType setType = new SetType(memberType1);
+        mondrian.calc.ListCalc listCalc =
+                new mondrian.calc.impl.AbstractListCalc(
+                        new DummyExp(setType), new Calc[0])
+                {
+                  public TupleList evaluateList(
+                          Evaluator evaluator)
+                  {
+                    ArrayList<Member> children = new ArrayList<Member>();
+                    Member expandingMember = ((RolapEvaluator) evaluator).getExpanding();
+
+                    if(subcubeHierarchyMembers.containsKey(expandingMember)) {
+                      for(Map.Entry<Member, Member> memberEntry : subcubeHierarchyMembers.entrySet()) {
+                        Member childMember = memberEntry.getValue();
+                        if(childMember.getParentMember() != null &&
+                                childMember.getParentMember().getUniqueName().equals(expandingMember.getUniqueName())) {
+                          children.add(childMember);
+                        }
+                      }
+                    }
+
+                    return new mondrian.calc.impl.UnaryTupleList(children);
+                  }
+
+                  public boolean dependsOn(Hierarchy hierarchy) {
+                    return true;
+                  }
+                };
+        final mondrian.olap.type.NumericType returnType = new mondrian.olap.type.NumericType();
+        final Calc partialCalc =
+                new RolapHierarchy.LimitedRollupAggregateCalc(returnType, listCalc);
+        Exp partialExp =
+                new ResolvedFunCall(
+                        new mondrian.olap.fun.FunDefBase("$x", "x", "In") {
+                          public Calc compileCall(
+                                  ResolvedFunCall call, mondrian.calc.ExpCompiler compiler)
+                          {
+                            //for debug
+                            //return new mondrian.calc.impl.ConstantCalc(returnType, null);
+                            return partialCalc;
+                          }
+
+                          public void unparse(Exp[] args, PrintWriter pw) {
+                            pw.print("$RollupAccessibleChildren()");
+                          }
+                        },
+                        new Exp[0],
+                        returnType);
+
+        final TupleIterable iterable = ( (IterCalc) calc ).evaluateIterable( evaluator );
+        TupleCursor cursor;
+        if ( iterable instanceof TupleList ) {
+          TupleList list = (TupleList) iterable;
+          cursor = list.tupleCursor();
+        } else {
+          // Iterable
+          cursor = iterable.tupleCursor();
+        }
+        mondrian.olap.Role.HierarchyAccess hierarchyAccess = mondrian.olap.RoleImpl.createAllAccess(hierarchy);
+        int currentIteration = 0;
+        while ( cursor.forward() ) {
+          CancellationChecker.checkCancelOrTimeout( currentIteration++, execution );
+          Member member = cursor.member(0);
+          //must be not isLeaf()
+          if(member.getLevel().getDepth() < lastLevel.getDepth()) {
+            if(member instanceof mondrian.rolap.RolapHierarchy.LimitedRollupMember){
+              //it could happen if there is Roles
+              member = ((mondrian.rolap.RolapHierarchy.LimitedRollupMember)member).getSourceMember();
+            }
+            member = new mondrian.rolap.RolapHierarchy.LimitedRollupMember(
+                    (RolapCubeMember)member,
+                    partialExp,
+                    hierarchyAccess
+            );
+          }
+          subcubeHierarchyMembers.put(member, member);
+        }
+        subcubeHierarchies.put(hierarchy, subcubeHierarchyMembers);
+
+      }
+      query.subcubeHierarchies = subcubeHierarchies;
+
+      query.replaceSubcubeMembers();
+      query.resolve();
+
+      //Create evaluator once more. It collected default members before subcube calculation.
+      if ( expDeps > 0 ) {
+        this.evaluator = new RolapDependencyTestingEvaluator( this, expDeps );
+      } else {
+        final RolapEvaluatorRoot root = new RolapResultEvaluatorRoot( this );
+        if ( statement.getProfileHandler() != null ) {
+          this.evaluator = new RolapProfilingEvaluator( root );
+        } else {
+          this.evaluator = new RolapEvaluator( root );
+        }
+      }
+
       // load all root Members for Hierarchies that have no ALL
       // Member and load ALL Members that are not the default Member.
       // Also, all Measures are are gathered.
@@ -275,6 +397,14 @@ public class RolapResult extends ResultBase {
       //
       axisMembers.setSlicer( true );
       loadMembers( emptyNonAllMembers, evaluator, query.getSlicerAxis(), query.slicerCalc, axisMembers );
+
+      if(axisMembers.isEmpty() && query.slicerCalc != null && query.slicerCalc.getType() instanceof SetType) {
+        //Slicer contains empty set
+        for(Hierarchy hierarchy: ((SetType)query.slicerCalc.getType()).getHierarchies()) {
+          axisMembers.addMember(((RolapCubeHierarchy)hierarchy).getNullMember());
+        }
+      }
+
       axisMembers.setSlicer( false );
 
       // Save unadulterated context for the next time we need to evaluate
@@ -476,12 +606,12 @@ public class RolapResult extends ResultBase {
                   }
                 }
               }
-              
+
               if ( !redo ) {
                 Util.explain( evaluator.root.statement.getProfileHandler(), "Axis (" + axis.getAxisName() + "):", calc,
                     evaluator.getTiming() );
               }
-              
+
               this.axes[i] = new RolapAxis( TupleCollections.materialize( tupleIterable, false ) );
             }
           } while ( redo );
@@ -493,13 +623,19 @@ public class RolapResult extends ResultBase {
       evaluator.restore( savepoint );
 
       // Get value for each Cell
-      final Locus locus = new Locus( execution, null, "Loading cells" );
-      Locus.push( locus );
-      try {
-        executeBody( internalSlicerEvaluator, query, new int[axes.length] );
-      } finally {
-        Util.explain( evaluator.root.statement.getProfileHandler(), "QueryBody:", null, evaluator.getTiming() );
-        Locus.pop( locus );
+      // Cells will not be calculated if only CELL_ORDINAL requested.
+      mondrian.olap.QueryPart[] cellProperties = query.getCellProperties();
+      if(!(cellProperties.length == 1
+              && ((mondrian.olap.Id.NameSegment)
+              mondrian.olap.Util.parseIdentifier(cellProperties[0].toString()).get(0)).name.equalsIgnoreCase(
+              mondrian.olap.Property.CELL_ORDINAL.getName()    ))) {
+        final Locus locus = new Locus( execution, null, "Loading cells" );
+        Locus.push( locus );
+        try {
+          executeBody( internalSlicerEvaluator, query, new int[axes.length] );
+        } finally {
+          Util.explain( evaluator.root.statement.getProfileHandler(), "QueryBody:", null, evaluator.getTiming() );Locus.pop( locus );
+        }
       }
 
       // If you are very close to running out of memory due to
@@ -719,6 +855,14 @@ public class RolapResult extends ResultBase {
 
   protected void loadMembers( List<List<Member>> nonAllMembers, RolapEvaluator evaluator, QueryAxis axis, Calc calc,
       AxisMemberList axisMembers ) {
+
+    // If evaluator contains Null member - return;
+    for(Member member: evaluator.getMembers()) {
+      if(member.isNull()) {
+        return;
+      }
+    }
+
     int attempt = 0;
     evaluator.setCellReader( batchingReader );
     while ( true ) {
@@ -769,8 +913,18 @@ public class RolapResult extends ResultBase {
 
   TupleIterable evalExecute( List<List<Member>> nonAllMembers, int cnt, RolapEvaluator evaluator, QueryAxis queryAxis,
       Calc calc ) {
-    final int savepoint = evaluator.savepoint();
     final int arity = calc == null ? 0 : calc.getType().getArity();
+
+    // If evaluator contains Null member - return empty list;
+    for(Member member: evaluator.getMembers()) {
+      if(member.isNull()) {
+        TupleList axisResult = TupleCollections.emptyList( arity );
+        return axisResult;
+      }
+    }
+
+    final int savepoint = evaluator.savepoint();
+
     if ( cnt < 0 ) {
       try {
         final TupleIterable axis = executeAxis( evaluator, queryAxis, calc, true, null );
@@ -871,7 +1025,7 @@ public class RolapResult extends ResultBase {
     }
 
     for ( int i = 0; i < pos.length; i++ ) {
-      if ( positionsHighCardinality.get( i ) ) {
+      if ( positionsHighCardinality.containsKey(i) && positionsHighCardinality.get( i ) ) {
         final Locus locus = new Locus( execution, null, "Loading cells" );
         Locus.push( locus );
         try {
@@ -2194,7 +2348,7 @@ public class RolapResult extends ResultBase {
      * CompoundSlicerRolapMember is always wrapped inside a CacheCalc.  To maximize the benefit
      * of the CacheCalc and the expression cache, the solve order of the CompoundSlicerRolapMember
      * should be lower than all other calculations.
-     * 
+     *
      */
     @Override
     public int getSolveOrder() {

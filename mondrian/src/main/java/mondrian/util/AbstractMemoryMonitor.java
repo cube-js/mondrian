@@ -114,11 +114,11 @@ public abstract class AbstractMemoryMonitor
     public boolean addListener(Listener listener, int percentage) {
         getLogger().info("addListener enter");
         try {
-/*
+
             // Should this listener being added be immediately
             // notified that memory is short.
             boolean notifyNow = (usagePercentage() >= percentage);
-*/
+
 
             final long newThreshold = convertPercentageToThreshold(percentage);
             Entry e = new Entry(listener, newThreshold);
@@ -152,12 +152,12 @@ public abstract class AbstractMemoryMonitor
                     notifyNewLowThreshold(lowThreshold);
                 }
             }
-/*
+
             if (notifyNow) {
                 listener.memoryUsageNotification(
                     getUsedMemory(), getMaxMemory());
             }
-*/
+
             return true;
         } finally {
             getLogger().info("addListener exit");
@@ -167,11 +167,11 @@ public abstract class AbstractMemoryMonitor
     public void updateListenerThreshold(Listener listener, int percentage) {
         getLogger().info("updateListenerThreshold enter");
         try {
-/*
+
             // Should this listener being added be immediately
             // notified that memory is short.
             boolean notifyNow = (usagePercentage() >= percentage);
-*/
+
 
             final long newThreshold = convertPercentageToThreshold(percentage);
 
@@ -210,12 +210,12 @@ public abstract class AbstractMemoryMonitor
                 }
             }
 
-/*
+
             if (notifyNow) {
                 listener.memoryUsageNotification(
                     getUsedMemory(), getMaxMemory());
             }
-*/
+
         } finally {
             getLogger().info("updateListenerThreshold exit");
         }

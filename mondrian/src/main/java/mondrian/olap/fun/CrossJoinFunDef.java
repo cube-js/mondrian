@@ -6,6 +6,8 @@
 //
 // Copyright (C) 2002-2005 Julian Hyde
 // Copyright (C) 2005-2020 Hitachi Vantara and others
+// Copyright (C) 2021 Topsoft
+// Copyright (c) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.olap.fun;
@@ -78,9 +80,7 @@ import java.util.Set;
 public class CrossJoinFunDef extends FunDefBase {
   private static final Logger LOGGER = LogManager.getLogger( CrossJoinFunDef.class );
 
-  static final ReflectiveMultiResolver Resolver =
-      new ReflectiveMultiResolver( "Crossjoin", "Crossjoin(<Set1>, <Set2>)", "Returns the cross product of two sets.",
-          new String[] { "fxxx" }, CrossJoinFunDef.class );
+  static final ResolverImpl Resolver = new ResolverImpl();
 
   static final StarCrossJoinResolver StarResolver = new StarCrossJoinResolver();
 
@@ -102,6 +102,10 @@ public class CrossJoinFunDef extends FunDefBase {
         addTypes( type, list );
       } else if ( getName().equals( "*" ) ) {
         // The "*" form of CrossJoin is lenient: args can be either
+        // members/tuples or sets.
+        addTypes( type, list );
+      } else if ( getName().equals( "()" ) ) {
+        // The "()" form of CrossJoin is lenient: args can be either
         // members/tuples or sets.
         addTypes( type, list );
       } else {
@@ -165,8 +169,32 @@ public class CrossJoinFunDef extends FunDefBase {
   ///////////////////////////////////////////////////////////////////////////
 
   protected IterCalc compileCallIterable( final ResolvedFunCall call, ExpCompiler compiler ) {
-    final Calc calc1 = toIter( compiler, call.getArg( 0 ) );
-    final Calc calc2 = toIter( compiler, call.getArg( 1 ) );
+    final Exp[] args = call.getArgs();
+    Calc[] calcs =  new Calc[args.length];
+    for (int i = 0; i < args.length; i++) {
+      calcs[i] = toIter( compiler, args[i] );
+    }
+    return compileCallIterableArray(call, compiler, calcs);
+  }
+
+  protected IterCalc compileCallIterableArray( final ResolvedFunCall call, ExpCompiler compiler, Calc[] calcs) {
+    IterCalc iterCalc = compileCallIterableLeaf(call, compiler, calcs[0], calcs[1]);
+
+    if(calcs.length == 2){
+      return iterCalc;
+    }
+    else {
+      Calc[] nextClasls = new Calc[calcs.length - 1];
+      nextClasls[0] = iterCalc;
+      for (int i = 1; i < calcs.length - 1; i++) {
+        nextClasls[i] = calcs[i + 1];
+      }
+      return compileCallIterableArray(call, compiler, nextClasls);
+    }
+  }
+
+  protected IterCalc compileCallIterableLeaf( final ResolvedFunCall call, ExpCompiler compiler,
+                                                final Calc  calc1, final Calc calc2) {
     Calc[] calcs = new Calc[] { calc1, calc2 };
     // The Calcs, 1 and 2, can be of type: Member or Member[] and
     // of ResultStyle: ITERABLE, LIST or MUTABLE_LIST, but
@@ -306,9 +334,33 @@ public class CrossJoinFunDef extends FunDefBase {
   ///////////////////////////////////////////////////////////////////////////
 
   protected ListCalc compileCallImmutableList( final ResolvedFunCall call, ExpCompiler compiler ) {
-    final ListCalc listCalc1 = toList( compiler, call.getArg( 0 ) );
-    final ListCalc listCalc2 = toList( compiler, call.getArg( 1 ) );
-    Calc[] calcs = new Calc[] { listCalc1, listCalc2 };
+    final Exp[] args = call.getArgs();
+    Calc[] calcs =  new Calc[args.length];
+    for (int i = 0; i < args.length; i++) {
+      calcs[i] = toList( compiler, args[i] );
+    }
+    return compileCallImmutableListArray(call, compiler, calcs);
+  }
+
+  protected ListCalc compileCallImmutableListArray( final ResolvedFunCall call, ExpCompiler compiler, Calc[] calcs ) {
+    ListCalc listCalc = compileCallImmutableListLeaf(call, compiler, calcs[0], calcs[1]);
+
+    if(calcs.length == 2){
+      return listCalc;
+    }
+    else {
+      Calc[] nextClasls = new Calc[calcs.length - 1];
+      nextClasls[0] = listCalc;
+      for (int i = 1; i < calcs.length - 1; i++) {
+        nextClasls[i] = calcs[i + 1];
+      }
+      return compileCallImmutableListArray(call, compiler, nextClasls);
+    }
+  }
+
+  protected ListCalc compileCallImmutableListLeaf( final ResolvedFunCall call, ExpCompiler compiler,
+                                                   final Calc  calc1, final Calc calc2 ) {
+    Calc[] calcs = new Calc[] { calc1, calc2 };
     // The Calcs, 1 and 2, can be of type: Member or Member[] and
     // of ResultStyle: LIST or MUTABLE_LIST.
     // Since we want an immutable list as the result, it does not
@@ -317,8 +369,8 @@ public class CrossJoinFunDef extends FunDefBase {
     // there are 4 possible combinations - even sweeter.
 
     // Check returned calc ResultStyles
-    checkListResultStyles( listCalc1 );
-    checkListResultStyles( listCalc2 );
+    checkListResultStyles( calc1 );
+    checkListResultStyles( calc2 );
 
     return new ImmutableListCalc( call, calcs );
   }
@@ -421,10 +473,33 @@ public class CrossJoinFunDef extends FunDefBase {
   }
 
   protected ListCalc compileCallMutableList( final ResolvedFunCall call, ExpCompiler compiler ) {
-    final ListCalc listCalc1 = toList( compiler, call.getArg( 0 ) );
-    final ListCalc listCalc2 = toList( compiler, call.getArg( 1 ) );
+    final Exp[] args = call.getArgs();
+    Calc[] calcs =  new Calc[args.length];
+    for (int i = 0; i < args.length; i++) {
+      calcs[i] = toList( compiler, args[i] );
+    }
+    return compileCallMutableListArray(call, compiler, calcs);
+  }
 
-    Calc[] calcs = new Calc[] { listCalc1, listCalc2 };
+  protected ListCalc compileCallMutableListArray( final ResolvedFunCall call, ExpCompiler compiler, Calc[] calcs ) {
+    ListCalc listCalc = compileCallMutableListLeaf(call, compiler, calcs[0], calcs[1]);
+
+    if(calcs.length == 2){
+      return listCalc;
+    }
+    else {
+      Calc[] nextClasls = new Calc[calcs.length - 1];
+      nextClasls[0] = listCalc;
+      for (int i = 1; i < calcs.length - 1; i++) {
+        nextClasls[i] = calcs[i + 1];
+      }
+      return compileCallMutableListArray(call, compiler, nextClasls);
+    }
+  }
+
+  protected ListCalc compileCallMutableListLeaf( final ResolvedFunCall call, ExpCompiler compiler,
+                                                 final Calc  calc1, final Calc calc2 ) {
+    Calc[] calcs = new Calc[] { calc1, calc2 };
     // The Calcs, 1 and 2, can be of type: Member or Member[] and
     // of ResultStyle: LIST or MUTABLE_LIST.
     // Since we want an mutable list as the result, it does not
@@ -434,8 +509,8 @@ public class CrossJoinFunDef extends FunDefBase {
     // there are 4 possible combinations - even sweeter.
 
     // Check returned calc ResultStyles
-    checkListResultStyles( listCalc1 );
-    checkListResultStyles( listCalc2 );
+    checkListResultStyles( calc1 );
+    checkListResultStyles( calc2 );
 
     return new MutableListCalc( call, calcs );
   }
@@ -947,6 +1022,38 @@ public class CrossJoinFunDef extends FunDefBase {
     }
     return false;
   }
+
+  private static class ResolverImpl extends ResolverBase {
+    public ResolverImpl() {
+      super("Crossjoin", "Crossjoin(<Set1>, <Set2>[, <Set3>...])", "Returns the cross product of two sets.",
+              mondrian.olap.Syntax.Function);
+    }
+
+    public FunDef resolve(
+            Exp[] args,
+            Validator validator,
+            List<Conversion> conversions)
+    {
+      if (args.length < 2) {
+        return null;
+      } else {
+        for (int i = 0; i < args.length; i++) {
+          if (!validator.canConvert(
+                  i, args[i], mondrian.olap.Category.Set, conversions)) {
+            return null;
+          }
+        }
+
+        FunDef dummy = createDummyFunDef(this, mondrian.olap.Category.Set, args);
+        return new CrossJoinFunDef(dummy);
+      }
+    }
+
+    protected FunDef createFunDef(Exp[] args, FunDef dummyFunDef) {
+      return new CrossJoinFunDef(dummyFunDef);
+    }
+  }
+
 
   private static class StarCrossJoinResolver extends MultiResolver {
     public StarCrossJoinResolver() {

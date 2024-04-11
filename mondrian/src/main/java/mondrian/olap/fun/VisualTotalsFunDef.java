@@ -4,7 +4,10 @@
 * http://www.eclipse.org/legal/epl-v10.html.
 * You must accept the terms of that agreement to use this software.
 *
-* Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (c) 2002-2017 Hitachi Vantara.
+* Copyright (C) 2019 Topsoft
+* Copyright (c) 2021 Sergei Semenkov
+* All rights reserved.
 */
 
 package mondrian.olap.fun;
@@ -109,22 +112,36 @@ public class VisualTotalsFunDef extends FunDefBase {
             final List<Member> list,
             Evaluator evaluator)
         {
-            final String name;
+            final String name = member.getName();;
             final String caption;
             if (stringCalc != null) {
                 final String namePattern = stringCalc.evaluateString(evaluator);
-                name = substitute(namePattern, member.getName());
-                caption = name;
+                caption = substitute(namePattern, member.getCaption());
             } else {
-                name = member.getName();
                 caption = member.getCaption();
             }
             final List<Member> childMemberList =
                 followingDescendants(member, i + 1, list);
-            final Exp exp = makeExpr(childMemberList);
+            final List<Member>  childMemberListWithRealMember = createListWithRealMember(childMemberList);
+            final Exp exp = makeExpr(childMemberListWithRealMember);
             final Validator validator = evaluator.getQuery().createValidator();
             final Exp validatedExp = exp.accept(validator);
-            return new VisualTotalMember(member, name, caption, validatedExp);
+            return new VisualTotalMember(member, name, caption, validatedExp, childMemberListWithRealMember);
+        }
+
+        private  List<Member> createListWithRealMember(List<Member> list)
+        {
+            List<Member> resultList = new ArrayList<Member>();
+            for(Member member: list){
+                if(member instanceof VisualTotalMember) {
+                    VisualTotalMember visualTotalMember = (VisualTotalMember)member;
+                    resultList.addAll(createListWithRealMember(visualTotalMember.getChildMemberList()));
+                }
+                else {
+                    resultList.add(member);
+                }
+            }
+            return resultList;
         }
 
         private List<Member> followingDescendants(
@@ -204,20 +221,23 @@ public class VisualTotalsFunDef extends FunDefBase {
         private final Member member;
         private Exp exp;
         private String caption;
+        private List<Member> childMemberList;
 
         VisualTotalMember(
             Member member,
             String name,
             String caption,
-            final Exp exp)
+            final Exp exp,
+            List<Member> childMemberList)
         {
             super(
                 (RolapMember) member.getParentMember(),
                 (RolapLevel) member.getLevel(),
-                RolapUtil.sqlNullValue, name, MemberType.FORMULA);
+                RolapUtil.sqlNullValue, name, member.getMemberType() ==  MemberType.ALL ? MemberType.ALL : MemberType.FORMULA);
             this.member = member;
             this.caption = caption;
             this.exp = exp;
+            this.childMemberList = childMemberList;
         }
 
         @Override
@@ -326,6 +346,10 @@ public class VisualTotalsFunDef extends FunDefBase {
             default:
                 return super.getPropertyValue(propertyName, matchCase);
             }
+        }
+
+        public List<Member> getChildMemberList() {
+            return this.childMemberList;
         }
     }
 

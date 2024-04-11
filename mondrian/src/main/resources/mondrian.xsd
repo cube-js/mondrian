@@ -194,6 +194,14 @@
                                             </xsd:documentation>
                                         </xsd:annotation>
                                     </xsd:attribute>
+                                    <xsd:attribute name="displayFolder" type="xsd:string" use="optional">
+                                        <xsd:annotation>
+                                            <xsd:documentation>
+                                                The path to be used when displaying the measure in the user interface.
+                                                Folder names will be separated by a semicolon. Nested folders are indicated by a backslash (\).
+                                            </xsd:documentation>
+                                        </xsd:annotation>
+                                    </xsd:attribute>
                                 </xsd:complexType>
                             </xsd:element>
                             <xsd:element name="CalculatedMember" type="CalculatedMember" minOccurs="0" maxOccurs="unbounded">
@@ -210,6 +218,9 @@
                                     </xsd:documentation>
                                 </xsd:annotation>
                             </xsd:element>
+                            <xsd:choice minOccurs="1" maxOccurs="unbounded">
+                                <xsd:element name="DrillThroughAction" type="DrillThroughAction"/>
+                            </xsd:choice>
                         </xsd:sequence>
                         <xsd:attribute name="name" type="xsd:string" use="required">
                             <xsd:annotation>
@@ -1778,6 +1789,14 @@
                 </xsd:documentation>
             </xsd:annotation>
         </xsd:attribute>
+        <xsd:attribute name="displayFolder" type="xsd:string" use="optional">
+            <xsd:annotation>
+                <xsd:documentation>
+                    The path to be used when displaying the member in the user interface.
+                    Folder names will be separated by a semicolon. Nested folders are indicated by a backslash (\).
+                </xsd:documentation>
+            </xsd:annotation>
+        </xsd:attribute>
     </xsd:complexType>
     <xsd:complexType name="CalculatedMemberProperty">
         <xsd:annotation>
@@ -1872,6 +1891,80 @@
             <xsd:annotation>
                 <xsd:documentation>
                     MDX expression which gives the value of this set. Equivalent to the Formula sub-element.
+                </xsd:documentation>
+            </xsd:annotation>
+        </xsd:attribute>
+    </xsd:complexType>
+    <xsd:complexType name="DrillThroughAction">
+        <xsd:annotation>
+            <xsd:documentation>
+                Defines a cube DrillThrough action.
+            </xsd:documentation>
+        </xsd:annotation>
+        <xsd:sequence>
+            <xsd:element name="Annotations" type="Annotations" minOccurs="0" maxOccurs="1"/>
+            <xsd:choice minOccurs="1" maxOccurs="unbounded">
+                <xsd:element name="Attribute" type="DrillThroughAttribute"/>
+                <xsd:element name="Measure" type="DrillThroughMeasure"/>
+            </xsd:choice>
+        </xsd:sequence>
+        <xsd:attribute name="name" type="xsd:string" use="required">
+            <xsd:annotation>
+                <xsd:documentation>
+                    Name of this action.
+                </xsd:documentation>
+            </xsd:annotation>
+        </xsd:attribute>
+        <xsd:attribute name="default" type="xsd:boolean" use="optional">
+            <xsd:annotation>
+                <xsd:documentation>
+                    Name of this action.
+                </xsd:documentation>
+            </xsd:annotation>
+        </xsd:attribute>
+        <xsd:attribute name="caption" type="xsd:string" use="optional">
+            <xsd:annotation>
+                <xsd:documentation>
+                    Caption of this action.
+                </xsd:documentation>
+            </xsd:annotation>
+        </xsd:attribute>
+        <xsd:attribute name="description" type="xsd:string" use="optional">
+            <xsd:annotation>
+                <xsd:documentation>
+                    Description of this action.
+                </xsd:documentation>
+            </xsd:annotation>
+        </xsd:attribute>
+    </xsd:complexType>
+    <xsd:complexType name="DrillThroughAttribute">
+        <xsd:attribute name="dimension" type="xsd:string" use="required">
+            <xsd:annotation>
+                <xsd:documentation>
+                    Dimension.
+                </xsd:documentation>
+            </xsd:annotation>
+        </xsd:attribute>
+        <xsd:attribute name="hierarchy" type="xsd:boolean" use="optional">
+            <xsd:annotation>
+                <xsd:documentation>
+                    Hierarchy.
+                </xsd:documentation>
+            </xsd:annotation>
+        </xsd:attribute>
+        <xsd:attribute name="level" type="xsd:string" use="optional">
+            <xsd:annotation>
+                <xsd:documentation>
+                    Level.
+                </xsd:documentation>
+            </xsd:annotation>
+        </xsd:attribute>
+    </xsd:complexType>
+    <xsd:complexType name="DrillThroughMeasure">
+        <xsd:attribute name="name" type="xsd:string" use="required">
+            <xsd:annotation>
+                <xsd:documentation>
+                    Measure.
                 </xsd:documentation>
             </xsd:annotation>
         </xsd:attribute>

@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2000-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 
@@ -379,6 +380,10 @@ public class Formula extends QueryPart {
 
     public Exp getExpression() {
         return exp;
+    }
+
+    public Exp setExpression(Exp exp) {
+        return this.exp = exp;
     }
 
     private Exp getMemberProperty(String name) {

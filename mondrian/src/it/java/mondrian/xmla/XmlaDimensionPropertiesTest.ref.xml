@@ -6,8 +6,8 @@
 <SOAP-ENV:Envelope SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
     <SOAP-ENV:Header/>
     <SOAP-ENV:Body>
-        <cxmla:ExecuteResponse xmlns:cxmla="urn:schemas-microsoft-com:xml-analysis">
-            <cxmla:return>
+        <ExecuteResponse xmlns="urn:schemas-microsoft-com:xml-analysis">
+            <return>
                 <root xmlns="urn:schemas-microsoft-com:xml-analysis:mddataset" xmlns:EX="urn:schemas-microsoft-com:xml-analysis:exception" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
                     <xsd:schema elementFormDefault="qualified" targetNamespace="urn:schemas-microsoft-com:xml-analysis:mddataset" xmlns="urn:schemas-microsoft-com:xml-analysis:mddataset" xmlns:sql="urn:schemas-microsoft-com:xml-sql" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
                         <xsd:complexType name="MemberType">
@@ -178,47 +178,48 @@
                         <CubeInfo>
                             <Cube>
                                 <CubeName>HR</CubeName>
+                                <LastDataUpdate xmlns="http://schemas.microsoft.com/analysisservices/2003/engine">xxxx-xx-xxTxx:xx:xx</LastDataUpdate>
+                                <LastSchemaUpdate xmlns="http://schemas.microsoft.com/analysisservices/2003/engine">xxxx-xx-xxTxx:xx:xx</LastSchemaUpdate>
                             </Cube>
                         </CubeInfo>
                         <AxesInfo>
                             <AxisInfo name="Axis0">
-                                <HierarchyInfo name="Pay Type">
-                                    <UName name="[Pay Type].[MEMBER_UNIQUE_NAME]"/>
-                                    <Caption name="[Pay Type].[MEMBER_CAPTION]"/>
-                                    <LName name="[Pay Type].[LEVEL_UNIQUE_NAME]"/>
-                                    <LNum name="[Pay Type].[LEVEL_NUMBER]"/>
-                                    <DisplayInfo name="[Pay Type].[DISPLAY_INFO]"/>
+                                <HierarchyInfo name="[Pay Type]">
+                                    <UName name="[Pay Type].[MEMBER_UNIQUE_NAME]" type="xsd:string"/>
+                                    <Caption name="[Pay Type].[MEMBER_CAPTION]" type="xsd:string"/>
+                                    <LName name="[Pay Type].[LEVEL_UNIQUE_NAME]" type="xsd:string"/>
+                                    <LNum name="[Pay Type].[LEVEL_NUMBER]" type="xsd:unsignedInt"/>
+                                    <DisplayInfo name="[Pay Type].[DISPLAY_INFO]" type="xsd:unsignedInt"/>
                                 </HierarchyInfo>
                             </AxisInfo>
                             <AxisInfo name="Axis1">
-                                <HierarchyInfo name="Store Type">
-                                    <UName name="[Store Type].[MEMBER_UNIQUE_NAME]"/>
-                                    <Caption name="[Store Type].[MEMBER_CAPTION]"/>
-                                    <LName name="[Store Type].[LEVEL_UNIQUE_NAME]"/>
-                                    <LNum name="[Store Type].[LEVEL_NUMBER]"/>
-                                    <DisplayInfo name="[Store Type].[DISPLAY_INFO]"/>
+                                <HierarchyInfo name="[Store Type]">
+                                    <UName name="[Store Type].[MEMBER_UNIQUE_NAME]" type="xsd:string"/>
+                                    <Caption name="[Store Type].[MEMBER_CAPTION]" type="xsd:string"/>
+                                    <LName name="[Store Type].[LEVEL_UNIQUE_NAME]" type="xsd:string"/>
+                                    <LNum name="[Store Type].[LEVEL_NUMBER]" type="xsd:unsignedInt"/>
+                                    <DisplayInfo name="[Store Type].[DISPLAY_INFO]" type="xsd:unsignedInt"/>
                                 </HierarchyInfo>
-                                <HierarchyInfo name="Store">
-                                    <UName name="[Store].[MEMBER_UNIQUE_NAME]"/>
-                                    <Caption name="[Store].[MEMBER_CAPTION]"/>
-                                    <LName name="[Store].[LEVEL_UNIQUE_NAME]"/>
-                                    <LNum name="[Store].[LEVEL_NUMBER]"/>
-                                    <DisplayInfo name="[Store].[DISPLAY_INFO]"/>
+                                <HierarchyInfo name="[Store]">
+                                    <UName name="[Store].[MEMBER_UNIQUE_NAME]" type="xsd:string"/>
+                                    <Caption name="[Store].[MEMBER_CAPTION]" type="xsd:string"/>
+                                    <LName name="[Store].[LEVEL_UNIQUE_NAME]" type="xsd:string"/>
+                                    <LNum name="[Store].[LEVEL_NUMBER]" type="xsd:unsignedInt"/>
+                                    <DisplayInfo name="[Store].[DISPLAY_INFO]" type="xsd:unsignedInt"/>
                                 </HierarchyInfo>
                             </AxisInfo>
                             <AxisInfo name="SlicerAxis"/>
                         </AxesInfo>
                         <CellInfo>
                             <Value name="VALUE"/>
-                            <FmtValue name="FORMATTED_VALUE"/>
-                            <FormatString name="FORMAT_STRING"/>
+                            <FmtValue name="FORMATTED_VALUE" type="xsd:string"/>
                         </CellInfo>
                     </OlapInfo>
                     <Axes>
                         <Axis name="Axis0">
                             <Tuples>
                                 <Tuple>
-                                    <Member Hierarchy="Pay Type">
+                                    <Member Hierarchy="[Pay Type]">
                                         <UName>[Pay Type].[All Pay Types]</UName>
                                         <Caption>All Pay Types</Caption>
                                         <LName>[Pay Type].[(All)]</LName>
@@ -231,14 +232,14 @@
                         <Axis name="Axis1">
                             <Tuples>
                                 <Tuple>
-                                    <Member Hierarchy="Store Type">
+                                    <Member Hierarchy="[Store Type]">
                                         <UName>[Store Type].[Deluxe Supermarket]</UName>
                                         <Caption>Deluxe Supermarket</Caption>
                                         <LName>[Store Type].[Store Type]</LName>
                                         <LNum>1</LNum>
                                         <DisplayInfo>0</DisplayInfo>
                                     </Member>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[USA]</UName>
                                         <Caption>USA</Caption>
                                         <LName>[Store].[Store Country]</LName>
@@ -248,22 +249,16 @@
                                 </Tuple>
                             </Tuples>
                         </Axis>
-                        <Axis name="SlicerAxis">
-                            <Tuples>
-                                <Tuple/>
-                            </Tuples>
-                        </Axis>
                     </Axes>
                     <CellData>
                         <Cell CellOrdinal="0">
                             <Value xsi:type="xsd:double">8511.4328</Value>
                             <FmtValue>$8,511.43</FmtValue>
-                            <FormatString>Currency</FormatString>
                         </Cell>
                     </CellData>
                 </root>
-            </cxmla:return>
-        </cxmla:ExecuteResponse>
+            </return>
+        </ExecuteResponse>
     </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>
 
@@ -305,8 +300,8 @@
 <SOAP-ENV:Envelope SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
     <SOAP-ENV:Header/>
     <SOAP-ENV:Body>
-        <cxmla:ExecuteResponse xmlns:cxmla="urn:schemas-microsoft-com:xml-analysis">
-            <cxmla:return>
+        <ExecuteResponse xmlns="urn:schemas-microsoft-com:xml-analysis">
+            <return>
                 <root xmlns="urn:schemas-microsoft-com:xml-analysis:mddataset" xmlns:EX="urn:schemas-microsoft-com:xml-analysis:exception" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
                     <xsd:schema elementFormDefault="qualified" targetNamespace="urn:schemas-microsoft-com:xml-analysis:mddataset" xmlns="urn:schemas-microsoft-com:xml-analysis:mddataset" xmlns:sql="urn:schemas-microsoft-com:xml-sql" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
                         <xsd:complexType name="MemberType">
@@ -477,40 +472,41 @@
                         <CubeInfo>
                             <Cube>
                                 <CubeName>HR</CubeName>
+                                <LastDataUpdate xmlns="http://schemas.microsoft.com/analysisservices/2003/engine">xxxx-xx-xxTxx:xx:xx</LastDataUpdate>
+                                <LastSchemaUpdate xmlns="http://schemas.microsoft.com/analysisservices/2003/engine">xxxx-xx-xxTxx:xx:xx</LastSchemaUpdate>
                             </Cube>
                         </CubeInfo>
                         <AxesInfo>
                             <AxisInfo name="Axis0">
-                                <HierarchyInfo name="Pay Type">
-                                    <UName name="[Pay Type].[MEMBER_UNIQUE_NAME]"/>
-                                    <Caption name="[Pay Type].[MEMBER_CAPTION]"/>
-                                    <LName name="[Pay Type].[LEVEL_UNIQUE_NAME]"/>
-                                    <LNum name="[Pay Type].[LEVEL_NUMBER]"/>
-                                    <DisplayInfo name="[Pay Type].[DISPLAY_INFO]"/>
+                                <HierarchyInfo name="[Pay Type]">
+                                    <UName name="[Pay Type].[MEMBER_UNIQUE_NAME]" type="xsd:string"/>
+                                    <Caption name="[Pay Type].[MEMBER_CAPTION]" type="xsd:string"/>
+                                    <LName name="[Pay Type].[LEVEL_UNIQUE_NAME]" type="xsd:string"/>
+                                    <LNum name="[Pay Type].[LEVEL_NUMBER]" type="xsd:unsignedInt"/>
+                                    <DisplayInfo name="[Pay Type].[DISPLAY_INFO]" type="xsd:unsignedInt"/>
                                 </HierarchyInfo>
                             </AxisInfo>
                             <AxisInfo name="Axis1">
-                                <HierarchyInfo name="Store">
-                                    <UName name="[Store].[MEMBER_UNIQUE_NAME]"/>
-                                    <Caption name="[Store].[MEMBER_CAPTION]"/>
-                                    <LName name="[Store].[LEVEL_UNIQUE_NAME]"/>
-                                    <LNum name="[Store].[LEVEL_NUMBER]"/>
-                                    <DisplayInfo name="[Store].[DISPLAY_INFO]"/>
+                                <HierarchyInfo name="[Store]">
+                                    <UName name="[Store].[MEMBER_UNIQUE_NAME]" type="xsd:string"/>
+                                    <Caption name="[Store].[MEMBER_CAPTION]" type="xsd:string"/>
+                                    <LName name="[Store].[LEVEL_UNIQUE_NAME]" type="xsd:string"/>
+                                    <LNum name="[Store].[LEVEL_NUMBER]" type="xsd:unsignedInt"/>
+                                    <DisplayInfo name="[Store].[DISPLAY_INFO]" type="xsd:unsignedInt"/>
                                 </HierarchyInfo>
                             </AxisInfo>
                             <AxisInfo name="SlicerAxis"/>
                         </AxesInfo>
                         <CellInfo>
                             <Value name="VALUE"/>
-                            <FmtValue name="FORMATTED_VALUE"/>
-                            <FormatString name="FORMAT_STRING"/>
+                            <FmtValue name="FORMATTED_VALUE" type="xsd:string"/>
                         </CellInfo>
                     </OlapInfo>
                     <Axes>
                         <Axis name="Axis0">
                             <Tuples>
                                 <Tuple>
-                                    <Member Hierarchy="Pay Type">
+                                    <Member Hierarchy="[Pay Type]">
                                         <UName>[Pay Type].[All Pay Types]</UName>
                                         <Caption>All Pay Types</Caption>
                                         <LName>[Pay Type].[(All)]</LName>
@@ -523,7 +519,7 @@
                         <Axis name="Axis1">
                             <Tuples>
                                 <Tuple>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[USA]</UName>
                                         <Caption>USA</Caption>
                                         <LName>[Store].[Store Country]</LName>
@@ -533,22 +529,16 @@
                                 </Tuple>
                             </Tuples>
                         </Axis>
-                        <Axis name="SlicerAxis">
-                            <Tuples>
-                                <Tuple/>
-                            </Tuples>
-                        </Axis>
                     </Axes>
                     <CellData>
                         <Cell CellOrdinal="0">
                             <Value xsi:type="xsd:double">39431.6712</Value>
                             <FmtValue>$39,431.67</FmtValue>
-                            <FormatString>Currency</FormatString>
                         </Cell>
                     </CellData>
                 </root>
-            </cxmla:return>
-        </cxmla:ExecuteResponse>
+            </return>
+        </ExecuteResponse>
     </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>
 
@@ -619,8 +609,8 @@
 <SOAP-ENV:Envelope SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
     <SOAP-ENV:Header/>
     <SOAP-ENV:Body>
-        <cxmla:ExecuteResponse xmlns:cxmla="urn:schemas-microsoft-com:xml-analysis">
-            <cxmla:return>
+        <ExecuteResponse xmlns="urn:schemas-microsoft-com:xml-analysis">
+            <return>
                 <root xmlns="urn:schemas-microsoft-com:xml-analysis:mddataset" xmlns:EX="urn:schemas-microsoft-com:xml-analysis:exception" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
                     <xsd:schema elementFormDefault="qualified" targetNamespace="urn:schemas-microsoft-com:xml-analysis:mddataset" xmlns="urn:schemas-microsoft-com:xml-analysis:mddataset" xmlns:sql="urn:schemas-microsoft-com:xml-sql" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
                         <xsd:complexType name="MemberType">
@@ -791,40 +781,41 @@
                         <CubeInfo>
                             <Cube>
                                 <CubeName>Sales</CubeName>
+                                <LastDataUpdate xmlns="http://schemas.microsoft.com/analysisservices/2003/engine">xxxx-xx-xxTxx:xx:xx</LastDataUpdate>
+                                <LastSchemaUpdate xmlns="http://schemas.microsoft.com/analysisservices/2003/engine">xxxx-xx-xxTxx:xx:xx</LastSchemaUpdate>
                             </Cube>
                         </CubeInfo>
                         <AxesInfo>
                             <AxisInfo name="Axis0">
-                                <HierarchyInfo name="Store">
-                                    <UName name="[Store].[MEMBER_UNIQUE_NAME]"/>
-                                    <Caption name="[Store].[MEMBER_CAPTION]"/>
-                                    <LName name="[Store].[LEVEL_UNIQUE_NAME]"/>
-                                    <LNum name="[Store].[LEVEL_NUMBER]"/>
-                                    <DisplayInfo name="[Store].[DISPLAY_INFO]"/>
-                                    <Store_x0020_Type name="[Store].[Store Type]" type="xsd:string"/>
+                                <HierarchyInfo name="[Store]">
+                                    <UName name="[Store].[MEMBER_UNIQUE_NAME]" type="xsd:string"/>
+                                    <Caption name="[Store].[MEMBER_CAPTION]" type="xsd:string"/>
+                                    <LName name="[Store].[LEVEL_UNIQUE_NAME]" type="xsd:string"/>
+                                    <LNum name="[Store].[LEVEL_NUMBER]" type="xsd:unsignedInt"/>
+                                    <DisplayInfo name="[Store].[DISPLAY_INFO]" type="xsd:unsignedInt"/>
+                                    <Store_x0020_Type name="[Store].[Store Type]"/>
                                 </HierarchyInfo>
                             </AxisInfo>
                             <AxisInfo name="SlicerAxis">
-                                <HierarchyInfo name="Time">
-                                    <UName name="[Time].[MEMBER_UNIQUE_NAME]"/>
-                                    <Caption name="[Time].[MEMBER_CAPTION]"/>
-                                    <LName name="[Time].[LEVEL_UNIQUE_NAME]"/>
-                                    <LNum name="[Time].[LEVEL_NUMBER]"/>
-                                    <DisplayInfo name="[Time].[DISPLAY_INFO]"/>
+                                <HierarchyInfo name="[Time]">
+                                    <UName name="[Time].[MEMBER_UNIQUE_NAME]" type="xsd:string"/>
+                                    <Caption name="[Time].[MEMBER_CAPTION]" type="xsd:string"/>
+                                    <LName name="[Time].[LEVEL_UNIQUE_NAME]" type="xsd:string"/>
+                                    <LNum name="[Time].[LEVEL_NUMBER]" type="xsd:unsignedInt"/>
+                                    <DisplayInfo name="[Time].[DISPLAY_INFO]" type="xsd:unsignedInt"/>
                                 </HierarchyInfo>
                             </AxisInfo>
                         </AxesInfo>
                         <CellInfo>
                             <Value name="VALUE"/>
-                            <FmtValue name="FORMATTED_VALUE"/>
-                            <FormatString name="FORMAT_STRING"/>
+                            <FmtValue name="FORMATTED_VALUE" type="xsd:string"/>
                         </CellInfo>
                     </OlapInfo>
                     <Axes>
                         <Axis name="Axis0">
                             <Tuples>
                                 <Tuple>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[All Stores]</UName>
                                         <Caption>All Stores</Caption>
                                         <LName>[Store].[(All)]</LName>
@@ -833,7 +824,7 @@
                                     </Member>
                                 </Tuple>
                                 <Tuple>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[USA]</UName>
                                         <Caption>USA</Caption>
                                         <LName>[Store].[Store Country]</LName>
@@ -842,7 +833,7 @@
                                     </Member>
                                 </Tuple>
                                 <Tuple>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[USA].[CA]</UName>
                                         <Caption>CA</Caption>
                                         <LName>[Store].[Store State]</LName>
@@ -851,7 +842,7 @@
                                     </Member>
                                 </Tuple>
                                 <Tuple>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[USA].[OR]</UName>
                                         <Caption>OR</Caption>
                                         <LName>[Store].[Store State]</LName>
@@ -860,7 +851,7 @@
                                     </Member>
                                 </Tuple>
                                 <Tuple>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[USA].[OR].[Portland]</UName>
                                         <Caption>Portland</Caption>
                                         <LName>[Store].[Store City]</LName>
@@ -869,17 +860,17 @@
                                     </Member>
                                 </Tuple>
                                 <Tuple>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[USA].[OR].[Portland].[Store 11]</UName>
                                         <Caption>Store 11</Caption>
                                         <LName>[Store].[Store Name]</LName>
                                         <LNum>4</LNum>
                                         <DisplayInfo>0</DisplayInfo>
-                                        <Store_x0020_Type>Supermarket</Store_x0020_Type>
+                                        <Store_x0020_Type xsi:type="xsd:string">Supermarket</Store_x0020_Type>
                                     </Member>
                                 </Tuple>
                                 <Tuple>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[USA].[OR].[Salem]</UName>
                                         <Caption>Salem</Caption>
                                         <LName>[Store].[Store City]</LName>
@@ -888,7 +879,7 @@
                                     </Member>
                                 </Tuple>
                                 <Tuple>
-                                    <Member Hierarchy="Store">
+                                    <Member Hierarchy="[Store]">
                                         <UName>[Store].[USA].[WA]</UName>
                                         <Caption>WA</Caption>
                                         <LName>[Store].[Store State]</LName>
@@ -901,7 +892,7 @@
                         <Axis name="SlicerAxis">
                             <Tuples>
                                 <Tuple>
-                                    <Member Hierarchy="Time">
+                                    <Member Hierarchy="[Time]">
                                         <UName>[Time].[1997]</UName>
                                         <Caption>1997</Caption>
                                         <LName>[Time].[Year]</LName>
@@ -916,47 +907,39 @@
                         <Cell CellOrdinal="0">
                             <Value xsi:type="xsd:double">266773</Value>
                             <FmtValue>266,773</FmtValue>
-                            <FormatString>Standard</FormatString>
                         </Cell>
                         <Cell CellOrdinal="1">
                             <Value xsi:type="xsd:double">266773</Value>
                             <FmtValue>266,773</FmtValue>
-                            <FormatString>Standard</FormatString>
                         </Cell>
                         <Cell CellOrdinal="2">
                             <Value xsi:type="xsd:double">74748</Value>
                             <FmtValue>74,748</FmtValue>
-                            <FormatString>Standard</FormatString>
                         </Cell>
                         <Cell CellOrdinal="3">
                             <Value xsi:type="xsd:double">67659</Value>
                             <FmtValue>67,659</FmtValue>
-                            <FormatString>Standard</FormatString>
                         </Cell>
                         <Cell CellOrdinal="4">
                             <Value xsi:type="xsd:double">26079</Value>
                             <FmtValue>26,079</FmtValue>
-                            <FormatString>Standard</FormatString>
                         </Cell>
                         <Cell CellOrdinal="5">
                             <Value xsi:type="xsd:double">26079</Value>
                             <FmtValue>26,079</FmtValue>
-                            <FormatString>Standard</FormatString>
                         </Cell>
                         <Cell CellOrdinal="6">
                             <Value xsi:type="xsd:double">41580</Value>
                             <FmtValue>41,580</FmtValue>
-                            <FormatString>Standard</FormatString>
                         </Cell>
                         <Cell CellOrdinal="7">
                             <Value xsi:type="xsd:double">124366</Value>
                             <FmtValue>124,366</FmtValue>
-                            <FormatString>Standard</FormatString>
                         </Cell>
                     </CellData>
                 </root>
-            </cxmla:return>
-        </cxmla:ExecuteResponse>
+            </return>
+        </ExecuteResponse>
     </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>
   ]]>

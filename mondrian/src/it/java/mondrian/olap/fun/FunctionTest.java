@@ -5,7 +5,8 @@
 // You must accept the terms of that agreement to use this software.
 //
 // Copyright (C) 2003-2005 Julian Hyde
-// Copyright (C) 2005-2021 Hitachi Vantara and others
+// Copyright (C) 2005-2020 Hitachi Vantara and others
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.olap.fun;
@@ -30,10 +31,8 @@ import mondrian.udf.CurrentDateMemberExactUdf;
 import mondrian.udf.CurrentDateMemberUdf;
 import mondrian.udf.CurrentDateStringUdf;
 import mondrian.util.Bug;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-
 import org.eigenbase.xom.StringEscaper;
 
 import java.io.File;
@@ -54,7 +53,7 @@ import java.util.concurrent.CancellationException;
 public class FunctionTest extends FoodMartTestCase {
 
   private static final Logger LOGGER = LogManager.getLogger( FunctionTest.class );
-  private static final int NUM_EXPECTED_FUNCTIONS = 325;
+  private static final int NUM_EXPECTED_FUNCTIONS = 329;
 
   private static final String months =
     "[Time].[1997].[Q1].[1]\n"
@@ -4639,10 +4638,10 @@ public class FunctionTest extends FoodMartTestCase {
   public void testDescendantsMLLeaves() {
     assertAxisReturns(
       "Descendants([Time].[1997], [Time].[Year], LEAVES)",
-      "" );
+      "[Time].[1997]" );
     assertAxisReturns(
       "Descendants([Time].[1997], [Time].[Quarter], LEAVES)",
-      "" );
+      "[Time].[1997].[Q1]\n" + "[Time].[1997].[Q2]\n" + "[Time].[1997].[Q3]\n" + "[Time].[1997].[Q4]" );
     assertAxisReturns(
       "Descendants([Time].[1997], [Time].[Month], LEAVES)",
       months );
@@ -4658,7 +4657,7 @@ public class FunctionTest extends FoodMartTestCase {
       getTestContext().withCube( "[Sales Ragged]" );
     raggedContext.assertAxisReturns(
       "Descendants([Store].[Israel], [Store].[Store City], leaves)",
-      "" );
+      "[Store].[Israel].[Israel].[Haifa]\n" + "[Store].[Israel].[Israel].[Tel Aviv]" );
 
     // all cities are leaves
     raggedContext.assertAxisReturns(
@@ -4670,13 +4669,19 @@ public class FunctionTest extends FoodMartTestCase {
     // a state, or Vatican, with is a country/state/city)
     raggedContext.assertAxisReturns(
       "Descendants([Geography], [Geography].[State], leaves)",
-      "" );
+      "[Geography].[Canada].[BC]\n" +
+              "[Geography].[Mexico].[DF]\n" +
+              "[Geography].[Mexico].[Guerrero]\n" +
+              "[Geography].[Mexico].[Jalisco]\n" +
+              "[Geography].[Mexico].[Veracruz]\n" +
+              "[Geography].[Mexico].[Yucatan]\n" +
+              "[Geography].[Mexico].[Zacatecas]\n" +
+              "[Geography].[USA].[CA]\n" +
+              "[Geography].[USA].[OR]\n" +
+              "[Geography].[USA].[WA]\n" +
+              "[Geography].[Vatican]"
+    );
 
-    // The Vatican is a nation with no children (they're all celibate,
-    // you know).
-    raggedContext.assertAxisReturns(
-      "Descendants([Geography], [Geography].[Country], leaves)",
-      "[Geography].[Vatican]" );
   }
 
   public void testDescendantsMNLeaves() {
@@ -5235,12 +5240,6 @@ public class FunctionTest extends FoodMartTestCase {
       "" );
   }
 
-  public void testSetContainingLevelFails() {
-    assertAxisThrows(
-      "[Store].[Store City]",
-      "No function matches signature '{<Level>}'" );
-  }
-
   public void testBug715177() {
     assertQueryReturns(
       "WITH MEMBER [Product].[Non-Consumable].[Other] AS\n"
@@ -5691,11 +5690,6 @@ public class FunctionTest extends FoodMartTestCase {
     // can coerce hierarchy to member
     assertExprReturns(
       "([Gender].[M], " + TimeWeekly + ")", "135,215" );
-
-    // cannot coerce level to member
-    assertAxisThrows(
-      "{([Gender].[M], [Store].[Store City])}",
-      "No function matches signature '(<Member>, <Level>)'" );
 
     // coerce args (hierarchy, member, member, dimension)
     assertAxisReturns(
@@ -10575,12 +10569,13 @@ Intel platforms):
         + "from [Sales]",
 
       // note that Subtotal - Bread only includes 2 displayed children
+      // in member with visual totals name is the same but caption is changed
       "Axis #0:\n"
         + "{}\n"
         + "Axis #1:\n"
         + "{[Measures].[Unit Sales]}\n"
         + "Axis #2:\n"
-        + "{[Product].[Food].[Baked Goods].[*Subtotal - Bread]}\n"
+        + "{[Product].[Food].[Baked Goods].[Bread]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Bagels]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Muffins]}\n"
         + "Row #0: 4,312\n"
@@ -10604,14 +10599,15 @@ Intel platforms):
       // Note that [Bagels] occurs 3 times, but only once does it
       // become a subtotal. Note that the subtotal does not include
       // the following [Bagels] member.
+      // in member with visual totals name is the same but caption is changed
       "Axis #0:\n"
         + "{}\n"
         + "Axis #1:\n"
         + "{[Measures].[Unit Sales]}\n"
         + "Axis #2:\n"
-        + "{[Product].[Food].[Baked Goods].[*Subtotal - Bread]}\n"
+        + "{[Product].[Food].[Baked Goods].[Bread]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Bagels]}\n"
-        + "{[Product].[Food].[Baked Goods].[Bread].[*Subtotal - Bagels]}\n"
+        + "{[Product].[Food].[Baked Goods].[Bread].[Bagels]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Bagels].[Colony]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Bagels]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Muffins]}\n"
@@ -10650,12 +10646,13 @@ Intel platforms):
 
       // Note that [*Subtotal - Bread] still contains the
       // contribution of [Bagels] 815, which was filtered out.
+      // in member with visual totals name is the same but caption is changed
       "Axis #0:\n"
         + "{}\n"
         + "Axis #1:\n"
         + "{[Measures].[Unit Sales]}\n"
         + "Axis #2:\n"
-        + "{[Product].[Food].[Baked Goods].[*Subtotal - Bread]}\n"
+        + "{[Product].[Food].[Baked Goods].[Bread]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Muffins]}\n"
         + "Row #0: 4,312\n"
         + "Row #1: 3,497\n" );
@@ -10676,12 +10673,13 @@ Intel platforms):
         + "from [Sales]",
 
       // Yields the same -- no extra total.
+      // in member with visual totals name is the same but caption is changed
       "Axis #0:\n"
         + "{}\n"
         + "Axis #1:\n"
         + "{[Measures].[Unit Sales]}\n"
         + "Axis #2:\n"
-        + "{[Product].[Food].[Baked Goods].[*Subtotal - Bread]}\n"
+        + "{[Product].[Food].[Baked Goods].[Bread]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Muffins]}\n"
         + "Row #0: 4,312\n"
         + "Row #1: 3,497\n" );
@@ -10704,7 +10702,7 @@ Intel platforms):
         + "Axis #1:\n"
         + "{[Measures].[Unit Sales]}\n"
         + "Axis #2:\n"
-        + "{[Product].[Food].[Baked Goods].[*Subtotal - Bread]}\n"
+        + "{[Product].[Food].[Baked Goods].[Bread]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Muffins]}\n"
         + "Row #0: 3,497\n"
         + "Row #1: 3,497\n" );
@@ -10728,7 +10726,7 @@ Intel platforms):
         + "{[Measures].[Unit Sales]}\n"
         + "Axis #2:\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Bagels]}\n"
-        + "{[Product].[Food].[Baked Goods].[*Subtotal - Bread]}\n"
+        + "{[Product].[Food].[Baked Goods].[Bread]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Muffins]}\n"
         + "Row #0: 815\n"
         + "Row #1: 3,497\n"
@@ -10759,10 +10757,10 @@ Intel platforms):
         + "Axis #1:\n"
         + "{[Measures].[Unit Sales]}\n"
         + "Axis #2:\n"
-        + "{[Product].[*Subtotal - Food]}\n"
-        + "{[Product].[Food].[Baked Goods].[*Subtotal - Bread]}\n"
+        + "{[Product].[Food]}\n"
+        + "{[Product].[Food].[Baked Goods].[Bread]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Bagels]}\n"
-        + "{[Product].[Food].[Frozen Foods].[*Subtotal - Breakfast Foods]}\n"
+        + "{[Product].[Food].[Frozen Foods].[Breakfast Foods]}\n"
         + "{[Product].[Food].[Frozen Foods].[Breakfast Foods].[Pancake Mix].[Golden]}\n"
         + "{[Product].[Food].[Frozen Foods].[Breakfast Foods].[Pancake Mix].[Big Time]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Muffins]}\n"
@@ -11252,7 +11250,8 @@ Intel platforms):
     assertEquals( "Bread", member1.getName() );
     assertEquals( "Product Category", member1.getLevel().getName() );
     final Member member2 = rowPos.get( 2 ).get( 0 );
-    assertEquals( "*Subtotal - Bread", member2.getName() );
+    assertEquals( "Bread", member2.getName() );
+    assertEquals( "*Subtotal - Bread", member2.getCaption() );
     assertEquals( "Product Category", member2.getLevel().getName() );
     final Member member3 = rowPos.get( 3 ).get( 0 );
     assertEquals( "Bagels", member3.getName() );
@@ -11290,7 +11289,7 @@ Intel platforms):
         + "Axis #2:\n"
         + "{[Product].[All Products]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread]}\n"
-        + "{[Product].[Food].[Baked Goods].[*Subtotal - Bread]}\n"
+        + "{[Product].[Food].[Baked Goods].[Bread]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Bagels]}\n"
         + "{[Product].[Food].[Baked Goods].[Bread].[Muffins]}\n"
         + "Row #0: 266,773\n"
@@ -11656,7 +11655,8 @@ Intel platforms):
         + "on 0 from sales",
       Util.IBM_JVM
         ? "StringIndexOutOfBoundsException: null"
-        : "java.lang.StringIndexOutOfBoundsException: begin 0, end -20, length 10" );
+        : "StringIndexOutOfBoundsException: String index out of range: "
+        + "-20" );
   }
 
   public void testMidFunctionWithValidArguments() {
@@ -12014,7 +12014,8 @@ Intel platforms):
       "right(\"abc\", -4)",
       Util.IBM_JVM
         ? "StringIndexOutOfBoundsException: null"
-        : "java.lang.StringIndexOutOfBoundsException: begin 7, end 3, length 3" );
+        : "StringIndexOutOfBoundsException: "
+        + "String index out of range: -4" );
   }
 
   public void testVbaDateTime() {

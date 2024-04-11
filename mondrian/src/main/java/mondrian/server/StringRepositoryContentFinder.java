@@ -5,6 +5,7 @@
 * You must accept the terms of that agreement to use this software.
 *
 * Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (C) 2022 Sergei Semenkov
 */
 
 package mondrian.server;
@@ -27,6 +28,8 @@ public class StringRepositoryContentFinder
     public String getContent() {
         return content;
     }
+
+    public void setContent(String content) {}
 
     public void shutdown() {
         // nothing to do

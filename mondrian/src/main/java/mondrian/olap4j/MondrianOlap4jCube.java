@@ -5,6 +5,8 @@
 * You must accept the terms of that agreement to use this software.
 *
 * Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (C) 2021 Topsoft
+* Copyright (c) 2021-2022 Sergei Semenkov
 */
 
 package mondrian.olap4j;
@@ -121,10 +123,7 @@ class MondrianOlap4jCube
                         .getLevels().get(0);
             final List<Measure> measures =
                 new ArrayList<Measure>();
-            List<mondrian.olap.Member> levelMembers =
-                schemaReader.getLevelMembers(
-                    measuresLevel.level,
-                    true);
+            List<mondrian.olap.Member> levelMembers = cube.getMeasures();
             for (mondrian.olap.Member member : levelMembers) {
                 // This corrects MONDRIAN-1123, a ClassCastException (see below)
                 // that occurs when you create a calculated member on a
@@ -319,7 +318,7 @@ class MondrianOlap4jCube
         return true;
     }
 
-    protected OlapElement getOlapElement() {
+    public OlapElement getOlapElement() {
         return cube;
     }
 }

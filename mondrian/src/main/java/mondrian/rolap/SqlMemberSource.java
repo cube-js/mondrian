@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2005-2018 Hitachi Vantara and others
+// Copyright (C) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -413,11 +414,16 @@ RME is this right
 
                     // REVIEW jvs 20-Feb-2007:  What about caption?
 
-                    if (!level.getOrdinalExp().equals(level.getKeyExp())) {
-                        if (assignOrderKeys) {
+                    if(assignOrderKeys && level.getOrdinalExp() != null) {
+                        if (!level.getOrdinalExp().equals(level.getKeyExp())) {
                             Object orderKey = accessors.get(column).get();
                             setOrderKey((RolapMemberBase) member, orderKey);
                         }
+                        else {
+                            setOrderKey((RolapMemberBase) member, value);
+                        }
+                    }
+                    if (!level.getOrdinalExp().equals(level.getKeyExp())) {
                         column++;
                     }
 
@@ -702,6 +708,12 @@ RME is this right
 
         RolapLevel level = (RolapLevel) member.getLevel().getChildLevel();
 
+        RolapLevel[] levels = (RolapLevel[]) hierarchy.getLevels();
+        int levelDepth = level.getDepth();
+
+        boolean needsGroupBy =
+                RolapUtil.isGroupByNeeded( hierarchy, levels, levelDepth );
+
         boolean levelCollapsed =
           (aggStar != null)
             && isLevelCollapsed(aggStar, (RolapCubeLevel)level);
@@ -717,22 +729,27 @@ RME is this right
             int bitPos = starColumn.getBitPosition();
             AggStar.Table.Column aggColumn = aggStar.lookupColumn(bitPos);
             String q = aggColumn.generateExprString(sqlQuery);
-            final String qAlias =
-              sqlQuery.addSelectGroupBy(q, starColumn.getInternalType());
+            String qAlias = sqlQuery.addSelect(q, starColumn.getInternalType());
+            if(needsGroupBy) {
+                sqlQuery.addGroupBy(q, qAlias);
+            }
             sqlQuery.addOrderBy(
               q, qAlias, true, false, true, true);
             aggColumn.getTable().addToFrom(sqlQuery, false, true);
             return sqlQuery;
         }
 
-        hierarchy.addToFrom(sqlQuery, level.getKeyExp());
-        String q = level.getKeyExp().getExpression(sqlQuery);
-        String idAlias =
-          sqlQuery.addSelectGroupBy(q, level.getInternalType());
-
         // in non empty mode the level table must be joined to the fact
         // table
+        // place fact table first in a query
         constraint.addLevelConstraint(sqlQuery, null, aggStar, level);
+
+        hierarchy.addToFrom(sqlQuery, level.getKeyExp());
+        String q = level.getKeyExp().getExpression(sqlQuery);
+        String idAlias = sqlQuery.addSelect(q, level.getInternalType());
+        if(needsGroupBy) {
+            sqlQuery.addGroupBy(q, idAlias);
+        }
 
         if (levelCollapsed) {
             // if this is a collapsed level, add a join between key and aggstar
@@ -770,20 +787,26 @@ RME is this right
                 hierarchy.addToFrom(sqlQuery, captionExp);
             }
             String captionSql = captionExp.getExpression(sqlQuery);
-            sqlQuery.addSelectGroupBy(captionSql, null);
+            String gbAlias = sqlQuery.addSelect(captionSql, null);
+            if(needsGroupBy) {
+                sqlQuery.addGroupBy(captionSql, gbAlias);
+            }
         }
         if (!levelCollapsed) {
             hierarchy.addToFrom(sqlQuery, level.getOrdinalExp());
         }
 
-        if (applyOrderBy) {
-            final String orderBy = level.getOrdinalExp().getExpression( sqlQuery );
-            if ( !orderBy.equals( q ) ) {
-                String orderAlias = sqlQuery.addSelectGroupBy( orderBy, null );
-                sqlQuery.addOrderBy(orderBy, orderAlias, true, false, true, true );
-            } else {
-                sqlQuery.addOrderBy(q, idAlias, true, false, true, true );
+        final String orderBy = level.getOrdinalExp().getExpression(sqlQuery);
+        if (!orderBy.equals(q)) {
+            String orderAlias = sqlQuery.addSelect(orderBy, null);
+            if(needsGroupBy) {
+                sqlQuery.addGroupBy(orderBy, orderAlias);
             }
+            sqlQuery.addOrderBy(
+                orderBy, orderAlias, true, false, true, true);
+        } else {
+            sqlQuery.addOrderBy(
+                q, idAlias, true, false, true, true);
         }
 
         RolapProperty[] properties = level.getProperties();
@@ -794,12 +817,13 @@ RME is this right
             }
             final String s = exp.getExpression(sqlQuery);
             String alias = sqlQuery.addSelect(s, property.getType().getInternalType());
-            // Some dialects allow us to eliminate properties from the
-            // group by that are functionally dependent on the level value
-            if (!sqlQuery.getDialect().allowsSelectNotInGroupBy()
-              || !property.dependsOnLevelValue())
-            {
-                sqlQuery.addGroupBy(s, alias);
+            if(needsGroupBy) {
+                // Some dialects allow us to eliminate properties from the
+                // group by that are functionally dependent on the level value
+                if (!sqlQuery.getDialect().allowsSelectNotInGroupBy()
+                        || !property.dependsOnLevelValue()) {
+                    sqlQuery.addGroupBy(s, alias);
+                }
             }
         }
         return sqlQuery;
@@ -1049,6 +1073,9 @@ RME is this right
         List<RolapMember> children,
         MemberChildrenConstraint constraint)
     {
+        Execution execution = Locus.peek().execution;
+        execution.checkCancelOrTimeout();
+
         Pair<String, List<SqlStatement.Type>> pair;
         boolean parentChild;
         final RolapLevel parentLevel = parentMember.getLevel();
@@ -1093,7 +1120,6 @@ RME is this right
             final List<SqlStatement.Accessor> accessors = stmt.getAccessors();
             ResultSet resultSet = stmt.getResultSet();
             RolapMember parentMember2 = RolapUtil.strip(parentMember);
-            Execution execution = Locus.peek().execution;
             while (resultSet.next()) {
                 // Check if the MDX query was canceled.
                 CancellationChecker.checkCancelOrTimeout(
@@ -1197,11 +1223,16 @@ RME is this right
         }
         Property[] properties = childLevel.getProperties();
         final List<SqlStatement.Accessor> accessors = stmt.getAccessors();
-        if (!childLevel.getOrdinalExp().equals(childLevel.getKeyExp())) {
-            if (assignOrderKeys) {
+        if(assignOrderKeys && childLevel.getOrdinalExp() != null) {
+            if (!childLevel.getOrdinalExp().equals(childLevel.getKeyExp())) {
                 Object orderKey = accessors.get(columnOffset).get();
                 setOrderKey(member, orderKey);
             }
+            else {
+                setOrderKey(member, value);
+            }
+        }
+        if (!childLevel.getOrdinalExp().equals(childLevel.getKeyExp())) {
             ++columnOffset;
         }
         for (int j = 0; j < properties.length; j++) {

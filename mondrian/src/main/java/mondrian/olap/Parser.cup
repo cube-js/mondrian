@@ -6,6 +6,7 @@
 //
 // Copyright (C) 1999-2005 Julian Hyde
 // Copyright (C) 2005-2011 Pentaho and others
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 //
 // Grammar condensed from OLE DB reference
@@ -158,7 +159,7 @@ parser code {:
             Statement statement,
             Formula[] formulae,
             QueryAxis[] axes,
-            String cube,
+            Subcube subcube,
             Exp slicer,
             QueryPart[] cellProps,
             boolean strictValidation)
@@ -170,7 +171,7 @@ parser code {:
                         false, slicer, AxisOrdinal.StandardAxisOrdinal.SLICER,
                         QueryAxis.SubtotalVisibility.Undefined, new Id[0]);
             return new Query(
-                statement, formulae, axes, cube, slicerAxis, cellProps,
+                statement, formulae, axes, subcube, slicerAxis, cellProps,
                 strictValidation);
         }
 
@@ -184,6 +185,13 @@ parser code {:
                 query, maxRowCount, firstRowOrdinal, returnList);
         }
 
+        public CalculatedFormula makeCalculatedFormula(
+            String cubeName,
+            Formula e)
+        {
+            return new CalculatedFormula(cubeName, e);
+        }
+
         /**
          * Creates an {@link Explain} object.
          */
@@ -191,6 +199,33 @@ parser code {:
             QueryPart query)
         {
             return new Explain(query);
+        }
+
+        public Refresh makeRefresh(
+                String cubeName)
+        {
+            return new Refresh(cubeName);
+        }
+
+        public Update makeUpdate(
+                String cubeName,
+                List<Update.UpdateClause> list)
+        {
+            return new Update(cubeName, list);
+        }
+
+        public DmvQuery makeDmvQuery(
+                String tableName,
+                List<String> columns,
+                Exp whereExpression)
+        {
+            return new DmvQuery(tableName, columns, whereExpression);
+        }
+
+        public TransactionCommand makeTransactionCommand(
+                TransactionCommand.Command c)
+        {
+            return new TransactionCommand(c);
         }
     }
 
@@ -1398,7 +1433,7 @@ select_statement ::=
                 parser.statement,
                 Parser.toFormulaArray(f),
                 Parser.toQueryAxisArray(a),
-                cubeName,
+                new Subcube(cubeName, null, null, null),
                 w,
                 Parser.toQueryPartArray(cp),
                 parser.strictValidation);

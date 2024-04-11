@@ -4,7 +4,9 @@
 * http://www.eclipse.org/legal/epl-v10.html.
 * You must accept the terms of that agreement to use this software.
 *
-* Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (c) 2002-2017 Hitachi Vantara.
+* Copyright (C) 2022 Sergei Semenkov.
+* All rights reserved.
 */
 
 package mondrian.olap4j;
@@ -24,7 +26,7 @@ import java.util.List;
  * @author jhyde
  * @since May 25, 2007
  */
-class MondrianOlap4jHierarchy
+public class MondrianOlap4jHierarchy
     extends MondrianOlap4jMetadataElement
     implements Hierarchy, Named
 {
@@ -128,12 +130,20 @@ class MondrianOlap4jHierarchy
             olap4jSchema.getLocale());
     }
 
+    public String getDisplayFolder() {
+        return hierarchy.getDisplayFolder();
+    }
+
     public boolean isVisible() {
         return hierarchy.isVisible();
     }
 
     protected OlapElement getOlapElement() {
         return hierarchy;
+    }
+
+    public mondrian.olap.Hierarchy getHierarchy() {
+        return this.hierarchy;
     }
 }
 

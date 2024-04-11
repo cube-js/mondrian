@@ -5,6 +5,7 @@
   == You must accept the terms of that agreement to use this software.
   ==
   == Copyright (C) 2011-2019 Hitachi Vantara
+  == Copyright (C) 2020-2023 Sergei Semenkov
   == All Rights Reserved.
   ==
   == Definitions of configuration properties used by Mondrian. From this file,
@@ -1537,5 +1538,40 @@ log4j.configuration=file:log4j.properties</code></blockquote>
         </Description>
         <Core>false</Core>
         <Type>String</Type>
+    </PropertyDefinition>
+    <PropertyDefinition>
+        <Name>IdleOrphanSessionTimeout</Name>
+        <Path>mondrian.server.IdleOrphanSessionTimeout</Path>
+        <Description>
+            <p>
+                The server will close a session if it is not in use for the specified timeout.
+                Default value is 3600 seconds.
+            </p>
+        </Description>
+        <Type>int</Type>
+        <Default>3600</Default>
+    </PropertyDefinition>
+    <PropertyDefinition>
+        <Name>EnableSessionCaching</Name>
+        <Path>mondrian.server.EnableSessionCaching</Path>
+        <Description>
+            <p>
+                If enable, then data cache will be created for every session.
+            </p>
+        </Description>
+        <Type>boolean</Type>
+        <Default>false</Default>
+    </PropertyDefinition>
+    <PropertyDefinition>
+        <Name>CaseSensitiveMdxInstr</Name>
+        <Path>mondrian.olap.case.sensitive.CaseSensitiveMdxInstr</Path>
+        <Description>
+            <p>
+                If true, then MDX functions InStr and InStrRev are case sensitive.
+                Default value is false.
+            </p>
+        </Description>
+        <Type>boolean</Type>
+        <Default>false</Default>
     </PropertyDefinition>
 </PropertyDefinitions>

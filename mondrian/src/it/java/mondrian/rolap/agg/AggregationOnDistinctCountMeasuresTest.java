@@ -1498,7 +1498,7 @@ public class AggregationOnDistinctCountMeasuresTest extends BatchTestCase {
             new Locus.Action<TupleList>() {
                 public TupleList execute() {
                     return AggregateFunDef.AggregateCalc.optimizeChildren(
-                        memberList, schemaReader, salesCube);
+                        memberList, schemaReader, salesCube, null);
                 }
             }
         );

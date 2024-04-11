@@ -112,6 +112,7 @@ public class XmlaMetaDataConstraintsTest extends XmlaBaseTestCase {
     }
 
     public void testCatalogsFiltered() throws Exception {
+        //Catalog in the properties has not filter DBSCHEMA_CATALOGS. Only if is set in restrictions.
         doTest(
             RowsetDefinition.DBSCHEMA_CATALOGS.name(), "FoodMart2");
         doTest(

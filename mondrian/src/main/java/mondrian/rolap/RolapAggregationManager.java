@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
 //
 // jhyde, 30 August, 2001
@@ -243,6 +244,18 @@ public abstract class RolapAggregationManager {
         RolapStoredMeasure measure,
         List<List<Member>> aggregationList)
     {
+
+        //Many cells of one query can have the same big and complex aggregationLists.
+        //It takes a lot of resources and memory to calculate it for every one.
+        CellReader cellReader = evaluator.getCellReader();
+        FastBatchingCellReader fastBatchingCellReader = null;
+        if(cellReader instanceof FastBatchingCellReader) {
+            fastBatchingCellReader = (FastBatchingCellReader)cellReader;
+            if(fastBatchingCellReader.aggregationListHash.containsKey(aggregationList)) {
+                return fastBatchingCellReader.aggregationListHash.get(aggregationList);
+            }
+        }
+
         CompoundPredicateInfo predicateInfo;
         if (aggregationList.equals(evaluator.getSlicerTuples())) {
             // slicer predicate is built once in the evaluator to
@@ -256,6 +269,9 @@ public abstract class RolapAggregationManager {
         } else {
             predicateInfo =  new CompoundPredicateInfo(
                 aggregationList, measure, evaluator);
+        }
+        if(fastBatchingCellReader != null) {
+            fastBatchingCellReader.aggregationListHash.put(aggregationList, predicateInfo);
         }
         return predicateInfo;
     }
@@ -350,6 +366,9 @@ public abstract class RolapAggregationManager {
 
         } else {
             for (int i = 1; i < members.length; i++) {
+                if(members[i].isNull()) {
+                    return null;
+                }
                 if (!(members[i] instanceof RolapCubeMember)) {
                     continue;
                 }

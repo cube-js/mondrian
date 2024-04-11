@@ -5,6 +5,7 @@
 // You must accept the terms of that agreement to use this software.
 //
 // Copyright (C) 2006-2017 Hitachi Vantara and others
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
  */
 package mondrian.olap;
@@ -185,7 +186,7 @@ public final class IdBatchResolver {
             List<Member> childMembers =
                 lookupChildrenByNames(parentMember, childNameSegments);
             addChildrenToResolvedMap(
-                resolvedIdentifiers, children, childMembers);
+                resolvedIdentifiers, children, childMembers, identifiers);
         }
     }
 
@@ -211,16 +212,18 @@ public final class IdBatchResolver {
      */
     private void addChildrenToResolvedMap(
         Map<QueryPart, QueryPart> resolvedIdentifiers, List<Id> children,
-        List<Member> childMembers)
+        List<Member> childMembers, SortedSet<Id> identifiers)
     {
+        HashMap<String, Id> idHash = new HashMap<String, Id>();
+        for (Id childId : children) {
+            idHash.put(((Id.NameSegment)getLastSegment(childId)).getName(), childId);
+        }
         for (Member child : childMembers) {
-            for (Id childId : children) {
-                if (!resolvedIdentifiers.containsKey(childId)
-                    && getLastSegment(childId).matches(child.getName()))
-                {
-                    resolvedIdentifiers.put(
+            Id childId = idHash.get(child.getName());
+            if(childId != null && !resolvedIdentifiers.containsKey(childId)) {
+                resolvedIdentifiers.put(
                         childId, (QueryPart)Util.createExpr(child));
-                }
+                identifiers.remove(childId);
             }
         }
     }

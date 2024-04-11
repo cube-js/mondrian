@@ -6,6 +6,7 @@
 //
 // Copyright (C) 1998-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2023 Sergei Semenkov
 // All Rights Reserved.
 */
 

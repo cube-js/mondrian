@@ -4,7 +4,9 @@
 * http://www.eclipse.org/legal/epl-v10.html.
 * You must accept the terms of that agreement to use this software.
 *
-* Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (c) 2002-2017 Hitachi Vantara..
+* Copyright (C) 2021-2022 Sergei Semenkov
+* All rights reserved.
 */
 
 package mondrian.olap;
@@ -246,6 +248,8 @@ public abstract class MondrianServer {
 
     public abstract AggregationManager getAggregationManager();
 
+    public abstract List<Statement> getStatements(String sessionId);
+
     /**
      * Description of the version of the server.
      */
@@ -290,6 +294,7 @@ public abstract class MondrianServer {
         String getProductName();
     }
 
+    public abstract Repository getRepository();
 }
 
 // End MondrianServer.java

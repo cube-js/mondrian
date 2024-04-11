@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2000-2005 Julian Hyde
 // Copyright (C) 2005-2018 Hitachi Vantara and others
+// Copyright (C) 2019 Topsoft
 // All Rights Reserved.
 //
 // jhyde, 2 November, 2000
@@ -307,7 +308,7 @@ public class Format {
         }
 
         void formatNull(StringBuilder buf) {
-            if (formats.length >= 4) {
+            if (formats.length >= 4 && formats[3] != null) {
                 formats[3].format(0, buf);
             } else {
                 super.formatNull(buf);
@@ -2228,7 +2229,10 @@ public class Format {
         String currencyRight =
             currencyValue.substring(currencyValue.indexOf("8") + 1);
         StringBuilder buf = new StringBuilder();
-        buf.append(currencyLeft);
+        for(int i = 0; i < currencyLeft.length(); i++) {
+            buf.append("\\");
+            buf.append(currencyLeft.charAt(i));
+        }
         int minimumIntegerDigits = currencyFormat.getMinimumIntegerDigits();
         for (int i = Math.max(minimumIntegerDigits, 4) - 1; i >= 0; --i) {
             buf.append(i < minimumIntegerDigits ? '0' : '#');
@@ -2244,7 +2248,10 @@ public class Format {
                 currencyFormat.getMaximumFractionDigits()
                 - currencyFormat.getMinimumFractionDigits());
         }
-        buf.append(currencyRight);
+        for(int i = 0; i < currencyRight.length(); i++) {
+            buf.append("\\");
+            buf.append(currencyRight.charAt(i));
+        }
         String currencyFormatString = buf.toString();
 
         // If the locale passed is only a language, Java cannot

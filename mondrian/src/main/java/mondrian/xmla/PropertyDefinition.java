@@ -6,6 +6,8 @@
 //
 // Copyright (C) 2003-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara
+// Copyright (C) 2019-2020 Topsoft
+// Copyright (c) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 */
 
@@ -159,7 +161,8 @@ public enum PropertyDefinition {
         RowsetDefinition.Type.String,
         null,
         XmlaConstants.Access.Read,
-        MondrianServer.forId(null).getVersion().getVersionString(),
+	"10.50.1600.1",
+        //MondrianServer.forId(null).getVersion().getVersionString(),
         XmlaConstants.Method.DISCOVER,
         "The version of the Mondrian XMLA Provider"),
 
@@ -232,7 +235,81 @@ public enum PropertyDefinition {
         XmlaConstants.Access.Read,
         "false",
         XmlaConstants.Method.DISCOVER_AND_EXECUTE,
-        "");
+        ""),
+
+    // Microsoft-specific XMLA definition.
+    SafetyOptions(
+        RowsetDefinition.Type.Integer,
+        null,
+        XmlaConstants.Access.ReadWrite,
+        "0",
+        XmlaConstants.Method.DISCOVER_AND_EXECUTE,
+        "Determines whether unsafe libraries can be registered and loaded by client applications."),
+
+    // Microsoft-specific XMLA definition.
+    MdxMissingMemberMode(
+        RowsetDefinition.Type.String,
+        null,
+        XmlaConstants.Access.Write,
+        "",
+        XmlaConstants.Method.DISCOVER_AND_EXECUTE,
+        "Indicates whether missing members are ignored in MDX statements."),
+
+    // Microsoft-specific XMLA definition.
+    DbpropMsmdMDXCompatibility(
+            RowsetDefinition.Type.Integer,
+            null,
+            XmlaConstants.Access.ReadWrite,
+            "0",
+            XmlaConstants.Method.DISCOVER_AND_EXECUTE,
+            "An enumeration value that determines how placeholder members in a ragged or\n" +
+                    "unbalanced hierarchy are treated."),
+
+    // Microsoft-specific XMLA definition.
+    MdpropMdxSubqueries(
+            RowsetDefinition.Type.Integer,
+            null,
+            XmlaConstants.Access.Read,
+            "",
+            XmlaConstants.Method.DISCOVER,
+            "A bitmask that indicates the level of support for subqueries in MDX."),
+
+    // Microsoft-specific XMLA definition.
+    ClientProcessID(
+            RowsetDefinition.Type.Integer,
+            null,
+            XmlaConstants.Access.ReadWrite,
+            "0",
+            XmlaConstants.Method.DISCOVER_AND_EXECUTE,
+            "The ID of the client process."),
+
+//    // Microsoft-specific XMLA definition.
+//    MdpropMdxFormulas(
+//            RowsetDefinition.Type.Integer,
+//            null,
+//            XmlaConstants.Access.ReadWrite,
+//            "63",
+//            XmlaConstants.Method.DISCOVER_AND_EXECUTE,
+//            ""),
+
+    // Microsoft-specific XMLA definition.
+    SspropInitAppName(
+            RowsetDefinition.Type.String,
+            null,
+            XmlaConstants.Access.ReadWrite,
+            "",
+            XmlaConstants.Method.DISCOVER_AND_EXECUTE,
+            "The name of the client application."),
+
+    // Microsoft-specific XMLA definition.
+    DbpropMsmdSubqueries(
+            RowsetDefinition.Type.Integer,
+            null,
+            XmlaConstants.Access.ReadWrite,
+            "1",
+            XmlaConstants.Method.DISCOVER_AND_EXECUTE,
+            "An enumeration value that determines the behavior of subqueries.")
+            ;
 
     final RowsetDefinition.Type type;
     final Set<? extends Enum> enumSet;

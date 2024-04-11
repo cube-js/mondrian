@@ -1000,56 +1000,49 @@ public class Util extends XOMUtil {
     {
         // First, look for a calculated member defined in the query.
         final String fullName = quoteMdxIdentifier(segments);
-        // Look for any kind of object (member, level, hierarchy,
-        // dimension) in the cube. Use a schema reader without restrictions.
         final SchemaReader schemaReaderSansAc =
             schemaReader.withoutAccessControl().withLocus();
         final Cube cube = q.getCube();
-        OlapElement olapElement =
-            schemaReaderSansAc.lookupCompound(
-                cube, segments, false, Category.Unknown);
-        if (olapElement != null) {
-            Role role = schemaReader.getRole();
-            if (!role.canAccess(olapElement)) {
-                olapElement = null;
-            }
-            if (olapElement instanceof Member) {
-                olapElement =
-                    schemaReader.substitute((Member) olapElement);
-            }
-        }
-        if (olapElement == null) {
-            if (allowProp && segments.size() > 1) {
-                List<Id.Segment> segmentsButOne =
+        // Check level properties before Member.
+        // Otherwise it will query all level members to find member with property name.
+        if (allowProp && segments.size() > 1) {
+            List<Id.Segment> segmentsButOne =
                     segments.subList(0, segments.size() - 1);
-                final Id.Segment lastSegment = last(segments);
-                final String propertyName =
+            final Id.Segment lastSegment = last(segments);
+            final String propertyName =
                     lastSegment instanceof Id.NameSegment
-                        ? ((Id.NameSegment) lastSegment).getName()
-                        : null;
-                final Member member =
+                            ? ((Id.NameSegment) lastSegment).getName()
+                            : null;
+            final Member member =
                     (Member) schemaReaderSansAc.lookupCompound(
-                        cube, segmentsButOne, false, Category.Member);
-                if (member != null
+                            cube, segmentsButOne, false, Category.Member);
+            if (member != null
                     && propertyName != null
                     && isValidProperty(propertyName, member.getLevel()))
-                {
-                    return new UnresolvedFunCall(
+            {
+                return new UnresolvedFunCall(
                         propertyName, Syntax.Property, new Exp[] {
-                            createExpr(member)});
-                }
-                final Level level =
+                        createExpr(member)});
+            }
+            final Level level =
                     (Level) schemaReaderSansAc.lookupCompound(
-                        cube, segmentsButOne, false, Category.Level);
-                if (level != null
+                            cube, segmentsButOne, false, Category.Level);
+            if (level != null
                     && propertyName != null
                     && isValidProperty(propertyName, level))
-                {
-                    return new UnresolvedFunCall(
+            {
+                return new UnresolvedFunCall(
                         propertyName, Syntax.Property, new Exp[] {
-                            createExpr(level)});
-                }
+                        createExpr(level)});
             }
+        }
+        // Look for any kind of object (member, level, hierarchy,
+        // dimension) in the cube. Use a schema reader without restrictions.
+        OlapElement olapElement =
+                schemaReaderSansAc.lookupCompound(
+                        cube, segments, false, Category.Unknown);
+
+        if(olapElement == null) {
             // if we're in the middle of loading the schema, the property has
             // been set to ignore invalid members, and the member is
             // non-existent, return the null member corresponding to the
@@ -1060,22 +1053,33 @@ public class Util extends XOMUtil {
                 olapElement = null;
                 while (nameLen > 0 && olapElement == null) {
                     List<Id.Segment> partialName =
-                        segments.subList(0, nameLen);
+                            segments.subList(0, nameLen);
                     olapElement = schemaReaderSansAc.lookupCompound(
-                        cube, partialName, false, Category.Unknown);
+                            cube, partialName, false, Category.Unknown);
                     nameLen--;
                 }
                 if (olapElement != null) {
                     olapElement = olapElement.getHierarchy().getNullMember();
                 } else {
                     throw MondrianResource.instance().MdxChildObjectNotFound.ex(
-                        fullName, cube.getQualifiedName());
+                            fullName, cube.getQualifiedName());
                 }
             } else {
                 throw MondrianResource.instance().MdxChildObjectNotFound.ex(
-                    fullName, cube.getQualifiedName());
+                        fullName, cube.getQualifiedName());
             }
         }
+
+        Role role = schemaReader.getRole();
+        if (!role.canAccess(olapElement)) {
+            throw MondrianResource.instance().MdxChildObjectNotFound.ex(
+                    fullName, cube.getQualifiedName());
+        }
+        if (olapElement instanceof Member) {
+            olapElement =
+                    schemaReader.substitute((Member) olapElement);
+        }
+
         // keep track of any measure members referenced; these will be used
         // later to determine if cross joins on virtual cubes can be
         // processed natively
@@ -4491,14 +4495,14 @@ public class Util extends XOMUtil {
                     iterator()
                 {
                     return new Iterator<Entry<K, V>>() {
-                        private int pt = -1;
+                        private int pt = 0;
                         public void remove() {
                             throw new UnsupportedOperationException();
                         }
                         @SuppressWarnings("unchecked")
                         public Entry<K, V> next() {
                             return new AbstractMapEntry(
-                                list.get(++pt), null) {};
+                                list.get(pt++), null) {};
                         }
                         public boolean hasNext() {
                             return pt < list.size();

@@ -59,7 +59,7 @@ public class RolapSchemaTest extends PropertyRestoringTestCase {
         SegmentCacheManager scManagerMock = mock(SegmentCacheManager.class);
         when(rolapConnectionMock.getServer()).thenReturn(mServerMock);
         when(mServerMock.getAggregationManager()).thenReturn(aggManagerMock);
-        when(aggManagerMock.getCacheMgr()).thenReturn(scManagerMock);
+        when(aggManagerMock.getCacheMgr(rolapConnectionMock)).thenReturn(scManagerMock);
         return new RolapSchema(key, md5, rolapConnectionMock);
     }
 

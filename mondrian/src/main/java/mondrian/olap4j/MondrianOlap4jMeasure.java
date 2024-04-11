@@ -4,7 +4,10 @@
 * http://www.eclipse.org/legal/epl-v10.html.
 * You must accept the terms of that agreement to use this software.
 *
-* Copyright (c) 2002-2017 Hitachi Vantara..  All rights reserved.
+* Copyright (c) 2002-2017 Hitachi Vantara.
+* Copyright (C) 2020-2021 Topsoft
+* Copyright (c) 2021-2022 Sergei Semenkov
+* All rights reserved.
 */
 
 package mondrian.olap4j;
@@ -70,6 +73,8 @@ class MondrianOlap4jMeasure
         }
         return Datatype.STRING;
     }
+
+    public String getDisplayFolder() { return (String) member.getPropertyValue("DISPLAY_FOLDER"); }
 }
 
 // End MondrianOlap4jMeasure.java

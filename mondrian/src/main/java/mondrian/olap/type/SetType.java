@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2005-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
 */
 
@@ -14,6 +15,7 @@ package mondrian.olap.type;
 import mondrian.olap.*;
 
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Set type.
@@ -79,6 +81,17 @@ public class SetType implements Type {
             return definitely;
         }
         return elementType.usesHierarchy(hierarchy, definitely);
+    }
+
+    public List<Hierarchy> getHierarchies() {
+        if(elementType instanceof TupleType) {
+            return ((TupleType)elementType).getHierarchies();
+        }
+        else { //MemberType
+            ArrayList<Hierarchy> result = new ArrayList<Hierarchy>();
+            result.add(this.getHierarchy());
+            return result;
+        }
     }
 
     public Dimension getDimension() {

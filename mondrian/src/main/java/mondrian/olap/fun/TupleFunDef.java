@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2002-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 
@@ -61,8 +62,8 @@ public class TupleFunDef extends FunDefBase {
         //
         // If there is only one member, it merely represents a parenthesized
         // expression, whose Hierarchy is that of the member.
-        if (args.length == 1) {
-            return TypeUtil.toMemberType(args[0].getType());
+        if (args.length == 1  && !(args[0].getType() instanceof MemberType)) {
+            return args[0].getType();
         } else {
             MemberType[] types = new MemberType[args.length];
             for (int i = 0; i < args.length; i++) {
@@ -125,24 +126,36 @@ public class TupleFunDef extends FunDefBase {
             //   (1 + 2) is a numeric,
             // but
             //   ([Gender].[M], [Marital Status].[S]) is a tuple.
-            if (args.length == 1) {
+            if (args.length == 1 && !(args[0].getType() instanceof MemberType)) {
                 return new ParenthesesFunDef(args[0].getCategory());
             } else {
                 final int[] argTypes = new int[args.length];
+                boolean hasSet = false;
                 for (int i = 0; i < args.length; i++) {
                     // Arg must be a member:
                     //  OK: ([Gender].[S], [Time].[1997])   (member, member)
                     //  OK: ([Gender], [Time])           (dimension, dimension)
                     // Not OK:
                     //  ([Gender].[S], [Store].[Store City]) (member, level)
-                    if (!validator.canConvert(
-                            i, args[i], Category.Member, conversions))
-                    {
+                    if (validator.canConvert(
+                            i, args[i], Category.Member, conversions)) {
+                        argTypes[i] = Category.Member;
+                    } else if(validator.canConvert(
+                            i, args[i], Category.Set, conversions)){
+                        hasSet = true;
+                        argTypes[i] = Category.Set;
+                    }
+                    else {
                         return null;
                     }
-                    argTypes[i] = Category.Member;
                 }
-                return new TupleFunDef(argTypes);
+                if(hasSet){
+                    FunDef dummy = createDummyFunDef(this, Category.Set, args);
+                    return new CrossJoinFunDef(dummy);
+                }
+                else {
+                    return new TupleFunDef(argTypes);
+                }
             }
         }
     }

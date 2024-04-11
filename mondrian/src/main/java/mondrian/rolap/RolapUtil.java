@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 //
 // jhyde, 22 December, 2001
@@ -741,6 +742,88 @@ public class RolapUtil {
       return Collections.unmodifiableList(Arrays.asList(factTableName));
     }
 
+    /**
+     * <p>Determines whether the GROUP BY clause is required, based on the
+     * schema definitions of the hierarchy and level properties.</p>
+     *
+     * <p>The GROUP BY clause may only be eliminated if the level identified by
+     * the uniqueKeyLevelName exists, the query is at a depth to include it, and all properties in the included levels are
+     * functionally dependent on their level values.</p>
+     *
+     * @param hierarchy  Hierarchy of the cube
+     * @param levels     Levels in this hierarchy
+     * @param levelDepth Level depth at which the query is occuring
+     * @return whether the GROUP BY is needed
+     */
+    public static boolean isGroupByNeeded(
+            RolapHierarchy hierarchy,
+            RolapLevel[] levels,
+            int levelDepth ) {
+        // Figure out if we need to generate GROUP BY at all.  It may only be
+        // eliminated if we are at a depth that includes the unique key level,
+        // and all properties of included levels depend on the level value.
+        boolean needsGroupBy = false;  // figure out if we need GROUP BY at all
+
+        if ( hierarchy.getUniqueKeyLevelName() == null ) {
+            needsGroupBy = true;
+        } else {
+            boolean foundUniqueKeyLevelName = false;
+            for ( int i = 0; i <= levelDepth; i++ ) {
+                RolapLevel lvl = levels[ i ];
+
+                // can ignore the "all" level
+                if ( !( lvl.isAll() ) ) {
+                    if ( hierarchy.getUniqueKeyLevelName().equals(
+                            lvl.getName() ) ) {
+                        foundUniqueKeyLevelName = true;
+                    }
+                    for ( RolapProperty p : lvl.getProperties() ) {
+                        if ( !p.dependsOnLevelValue() ) {
+                            needsGroupBy = true;
+                            // GROUP BY is required, so break out of
+                            // properties loop
+                            break;
+                        }
+                    }
+                    if ( needsGroupBy ) {
+                        // GROUP BY is required, so break out of levels loop
+                        break;
+                    }
+                }
+            }
+            if ( !foundUniqueKeyLevelName ) {
+                // if we're not deep enough to be unique,
+                // then the GROUP BY is required
+                needsGroupBy = true;
+            }
+        }
+
+        return needsGroupBy;
+    }
+
+    public static MondrianDef.RelationOrJoin processRelation(MondrianDef.Schema xmlSchema, MondrianDef.RelationOrJoin relation)
+    {
+        if (relation instanceof MondrianDef.SchemaView) {
+            final MondrianDef.SchemaView schemaView = (MondrianDef.SchemaView)relation;
+            for(MondrianDef.View view: xmlSchema.views) {
+                if(view.alias.equals(schemaView.source)) {
+                    MondrianDef.View newView = null;
+                    try {
+                        newView = (MondrianDef.View) view.deepCopy();
+                        newView.alias = schemaView.alias;
+                    }
+                    finally {
+                        return newView;
+                    }
+
+                }
+            }
+            return null;
+        }
+        else {
+            return relation;
+        }
+    }
 
 }
 

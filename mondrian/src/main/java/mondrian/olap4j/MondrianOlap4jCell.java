@@ -4,7 +4,9 @@
 // http://www.eclipse.org/legal/epl-v10.html.
 // You must accept the terms of that agreement to use this software.
 //
-// Copyright (c) 2002-2021 Hitachi Vantara..  All rights reserved.
+// Copyright (c) 2002-2017 Hitachi Vantara
+// Copyright (C) 2021 Sergei Semenkov
+// All rights reserved.
 */
 package mondrian.olap4j;
 
@@ -29,7 +31,7 @@ import java.util.List;
  * @author jhyde
  * @since May 24, 2007
  */
-class MondrianOlap4jCell implements Cell {
+public class MondrianOlap4jCell implements Cell {
     private final int[] coordinates;
     private final MondrianOlap4jCellSet olap4jCellSet;
     final RolapCell cell;
@@ -56,6 +58,10 @@ class MondrianOlap4jCell implements Cell {
 
     public CellSet getCellSet() {
         return olap4jCellSet;
+    }
+
+    public RolapCell getRolapCell(){
+        return this.cell;
     }
 
     public int getOrdinal() {

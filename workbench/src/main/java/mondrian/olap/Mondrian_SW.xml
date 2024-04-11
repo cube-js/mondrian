@@ -8,6 +8,7 @@
   ==
   == Copyright (C) 2001-2005 Julian Hyde
   == Copyright (C) 2005-2019 Hitachi Vantara and others
+  == Copyright (c) 2021 Sergei Semenkov
   == All Rights Reserved.
   ==
   == This file defines an MMM schema for an Olap schema.
@@ -1063,6 +1064,12 @@
                 Default true.
             </Doc>
         </Attribute>
+        <Attribute name="displayFolder" required="false">
+            <Doc>
+                The path to be used when displaying the measure in the user interface.
+                Folder names will be separated by a semicolon. Nested folders are indicated by a backslash (\).
+            </Doc>
+        </Attribute>
         <Object name="annotations" type="Annotations" required="false">
             <Doc>Contains values of user-defined properties.</Doc>
         </Object>
@@ -1132,6 +1139,12 @@
             <Doc>
                 Whether this member is visible in the user-interface.
                 Default true.
+            </Doc>
+        </Attribute>
+        <Attribute name="displayFolder" required="false">
+            <Doc>
+                The path to be used when displaying the member in the user interface.
+                Folder names will be separated by a semicolon. Nested folders are indicated by a backslash (\).
             </Doc>
         </Attribute>
         <Object name="annotations" type="Annotations" required="false">

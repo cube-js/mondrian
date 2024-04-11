@@ -5,6 +5,7 @@
 // You must accept the terms of that agreement to use this software.
 //
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.server;
@@ -431,6 +432,16 @@ public class FileRepository implements Repository {
     // tests
     RepositoryContentFinder getRepositoryContentFinder() {
         return repositoryContentFinder;
+    }
+
+    public String getContent() {
+        return repositoryContentFinder.getContent();
+    }
+
+    public void setContent(String content) {
+        //set
+        this.repositoryContentFinder.setContent(content);
+        this.clearServerInfo();
     }
 }
 

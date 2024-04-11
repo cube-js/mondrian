@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2005-2021 Hitachi Vantara and others
+// Copyright (C) 2021-2022 Sergei Semenkov
 // All Rights Reserved.
 //
 // jhyde, 10 August, 2001
@@ -364,6 +365,10 @@ public class RolapEvaluator implements Evaluator {
       commands[commandCount++] = Command.SET_CELL_READER;
       this.cellReader = cellReader;
     }
+  }
+
+  public CellReader getCellReader() {
+    return this.cellReader;
   }
 
   public final RolapCube getCube() {

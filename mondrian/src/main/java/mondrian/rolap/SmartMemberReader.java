@@ -7,6 +7,7 @@
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2004-2005 TONBELLER AG
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2022 Sergei Semenkov
 // All Rights Reserved.
 */
 
@@ -152,6 +153,9 @@ public class SmartMemberReader implements MemberReader {
                 source.getMembersInLevel(
                     level, constraint);
             cacheHelper.putLevelMembersInCache(level, constraint, members);
+            if(constraint.equals(sqlConstraintFactory.getLevelMembersConstraint(null))) {
+                cacheHelper.setLevelAsCached(level);
+            }
             return members;
         }
     }
@@ -200,6 +204,10 @@ public class SmartMemberReader implements MemberReader {
 
             List<RolapMember> missed = new ArrayList<RolapMember>();
             for (RolapMember parentMember : parentMembers) {
+                RolapLevel childLevel = (RolapLevel)parentMember.getLevel().getChildLevel();
+                if(childLevel != null && !this.cacheHelper.cachedLevels.contains(childLevel)) {
+                    this.getMembersInLevel(childLevel);
+                }
                 List<RolapMember> list =
                     cacheHelper.getChildrenFromCache(parentMember, constraint);
                 if (list == null) {

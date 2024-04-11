@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2005-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara
+// Copyright (C) 2021 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.rolap;
@@ -96,12 +97,20 @@ public class RolapCell implements Cell {
         boolean extendedContext)
     {
         return getDrillThroughSQL(
-            new ArrayList<OlapElement>(), extendedContext);
+            new ArrayList<OlapElement>(), extendedContext, 0);
+    }
+
+    public String getDrillThroughSQL(
+            List<OlapElement> fields,
+            boolean extendedContext)
+    {
+        return getDrillThroughSQL(fields, extendedContext, 0);
     }
 
     public String getDrillThroughSQL(
         List<OlapElement> fields,
-        boolean extendedContext)
+        boolean extendedContext,
+        int maxRowCount)
     {
         if (!MondrianProperties.instance()
             .EnableDrillThrough.get())
@@ -125,6 +134,7 @@ public class RolapCell implements Cell {
             RolapAggregationManager.makeDrillThroughRequest(
                 currentMembers, extendedContext, result.getCube(),
                 fields);
+        cellRequest.setMaxRowCount(maxRowCount);
         if (cellRequest == null) {
             return null;
         }
@@ -312,7 +322,7 @@ public class RolapCell implements Cell {
      * Returns appropriate non-virtual cube that will be used
      * for retrieving base star key column.
      */
-    private RolapCube getDrillThroughBaseCube() {
+    public RolapCube getDrillThroughBaseCube() {
         if (result.getCube().isVirtual()) {
             Member[] membersForDrillThrough = this.getMembersForDrillThrough();
             for (Member m : membersForDrillThrough) {
@@ -396,7 +406,7 @@ public class RolapCell implements Cell {
              : visitor.cube;
     }
 
-    private Member[] getMembersForDrillThrough() {
+    public Member[] getMembersForDrillThrough() {
         final Member[] currentMembers = result.getCellMembers(pos);
 
         // replace member if we're dealing with a trivial formula
@@ -478,7 +488,7 @@ public class RolapCell implements Cell {
         }
 
         // Generate SQL.
-        String sql = getDrillThroughSQL(fields, extendedContext);
+        String sql = getDrillThroughSQL(fields, extendedContext,  maxRowCount);
         if (logger != null && logger.isDebugEnabled()) {
             logger.debug("drill through sql: " + sql);
         }
@@ -524,6 +534,7 @@ public class RolapCell implements Cell {
             MondrianProperties.instance().CaseSensitive.get();
         Property property = Property.lookup(propertyName, matchCase);
         Object defaultValue = null;
+        String formatString = null;
         if (property != null) {
             switch (property.ordinal) {
             case Property.CELL_ORDINAL_ORDINAL:
@@ -554,6 +565,47 @@ public class RolapCell implements Cell {
                 return canDrillThrough() ? MDACTION_TYPE_DRILLTHROUGH : 0;
             case Property.DRILLTHROUGH_COUNT_ORDINAL:
                 return canDrillThrough() ? getDrillThroughCount() : -1;
+            case Property.BACK_COLOR_ORDINAL:
+                formatString = (String)getPropertyValue(Property.FORMAT_STRING.getName());
+                if(formatString == null) {
+                    return null;
+                }
+                for(String part: formatString.split(";")) {
+                    String[] pair = part.split("=");
+                    if(pair.length == 2
+                            && pair[0] != null
+                            && pair[0].toUpperCase().equals(Property.BACK_COLOR.getName())) {
+                        return pair[1];
+                    }
+                }
+                return null;
+// To option when backColor belongs to real measure
+//                Object backColor = null;
+//                //final RolapEvaluator rolapEvaluator = (RolapEvaluator)result.getEvaluator(pos);
+//                final RolapEvaluator rolapEvaluator = (RolapEvaluator)result.getRootEvaluator();
+//                final int savepoint = rolapEvaluator.savepoint();
+//                try {
+//                    result.populateEvaluator(rolapEvaluator, pos);
+//                    org.apache.log4j.Logger LOGGER = org.apache.log4j.Logger.getLogger( RolapCell.class );
+//                    backColor = rolapEvaluator.getBackColor();
+//                } finally {
+//                    rolapEvaluator.restore(savepoint);
+//                }
+//                return backColor;
+            case Property.FORE_COLOR_ORDINAL:
+                formatString = (String)getPropertyValue(Property.FORMAT_STRING.getName());
+                if(formatString == null) {
+                    return null;
+                }
+                for(String part: formatString.split(";")) {
+                    String[] pair = part.split("=");
+                    if(pair.length == 2
+                            && pair[0] != null
+                            && pair[0].toUpperCase().equals(Property.FORE_COLOR.getName())) {
+                        return pair[1];
+                    }
+                }
+                return null;
             default:
                 // fall through
             }

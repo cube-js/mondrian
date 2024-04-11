@@ -4,7 +4,9 @@
 // http://www.eclipse.org/legal/epl-v10.html.
 // You must accept the terms of that agreement to use this software.
 //
-// Copyright (c) 2002-2017 Hitachi Vantara.  All rights reserved.
+// Copyright (c) 2002-2017 Hitachi Vantara.
+// Copyright (C) 2022 Sergei Semenkov
+// All rights reserved.
 */
 package mondrian.udf;
 
@@ -115,9 +117,9 @@ public class CurrentDateMemberUdf implements UserDefinedFunction {
     }
 
     public Type getReturnType(Type[] parameterTypes) {
-        Dimension dim = parameterTypes[0].getDimension();
-        return (dim == null) ? MemberType.Unknown : MemberType
-            .forDimension(dim);
+        Hierarchy hierarchy =  parameterTypes[0].getHierarchy();
+        return (hierarchy == null) ? MemberType.Unknown : MemberType
+            .forHierarchy(hierarchy);
     }
 
     public Syntax getSyntax() {

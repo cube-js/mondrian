@@ -6,6 +6,7 @@
 //
 // Copyright (C) 2005-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara
+// Copyright (C) 2021-2023 Sergei Semenkov
 // All Rights Reserved.
 */
 package mondrian.olap.type;
@@ -73,7 +74,10 @@ public class TypeUtil {
             || type instanceof LevelType)
         {
             return MemberType.forType(type);
-        } else {
+        } else if(type instanceof TupleType && ((TupleType)type).getArity() == 1) {
+            return MemberType.forHierarchy(((TupleType)type).getHierarchies().get(0));
+        }
+        else {
             return null;
         }
     }
@@ -88,12 +92,19 @@ public class TypeUtil {
      * @return whether types are union-compatible
      */
     public static boolean isUnionCompatible(Type type1, Type type2) {
+        final MemberType memberType1 = toMemberType(type1);
+        final MemberType memberType2 = toMemberType(type2);
+        if(memberType1 != null && memberType2 != null ) {
+            final Hierarchy hierarchy1 = memberType1.getHierarchy();
+            final Hierarchy hierarchy2 = memberType2.getHierarchy();
+            return equal(hierarchy1, hierarchy2);
+        }
         if (type1 instanceof TupleType) {
             TupleType tupleType1 = (TupleType) type1;
             if (type2 instanceof TupleType) {
                 TupleType tupleType2 = (TupleType) type2;
                 if (tupleType1.elementTypes.length
-                    == tupleType2.elementTypes.length)
+                        == tupleType2.elementTypes.length)
                 {
                     for (int i = 0; i < tupleType1.elementTypes.length; i++) {
                         if (!isUnionCompatible(
@@ -107,19 +118,8 @@ public class TypeUtil {
                 }
             }
             return false;
-        } else {
-            final MemberType memberType1 = toMemberType(type1);
-            if (memberType1 == null) {
-                return false;
-            }
-            final MemberType memberType2 = toMemberType(type2);
-            if (memberType2 == null) {
-                return false;
-            }
-            final Hierarchy hierarchy1 = memberType1.getHierarchy();
-            final Hierarchy hierarchy2 = memberType2.getHierarchy();
-            return equal(hierarchy1, hierarchy2);
         }
+        return false;
     }
 
     /**
@@ -324,6 +324,7 @@ public class TypeUtil {
                 conversions.add(new ConversionImpl(from, to, ordinal, 2, null));
                 return true;
             case Category.Hierarchy:
+            case Category.Set:
                 conversions.add(new ConversionImpl(from, to, ordinal, 1, null));
                 return true;
             default:
@@ -337,35 +338,55 @@ public class TypeUtil {
                 return false;
             }
         case Category.Member:
-            switch (to) {
-            case Category.Dimension:
-            case Category.Hierarchy:
-            case Category.Level:
-            case Category.Tuple:
-                conversions.add(new ConversionImpl(from, to, ordinal, 1, null));
-                return true;
-            case Category.Set:
-                // It is more expensive to convert from Member->Set (cost=2)
-                // than Member->Tuple (cost=1). In particular, m.Tuple(n) should
-                // resolve to <Tuple>.Item(<Numeric>) rather than
-                // <Set>.Item(<Numeric>).
-                conversions.add(new ConversionImpl(from, to, ordinal, 2, null));
-                return true;
-            case Category.Numeric:
-                // It is more expensive to convert from Member->Scalar (cost=3)
-                // than Member->Set (cost=2). In particular, we want 'member *
-                // set' to resolve to the crossjoin operator, '{m} * set'.
-                conversions.add(new ConversionImpl(from, to, ordinal, 3, null));
-                return true;
-            case Category.Value:
-            case Category.String:
-                // We assume that measures are numeric, so a cast to a string or
-                // general value expression is more expensive (cost=4) than a
-                // conversion to a numeric expression (cost=3).
-                conversions.add(new ConversionImpl(from, to, ordinal, 4, null));
-                return true;
-            default:
-                return false;
+            if(fromType.getDimension().isMeasures()) {
+                switch (to) {
+                    case Category.Numeric:
+                        conversions.add(new ConversionImpl(from, to, ordinal, 1, null));
+                        return true;
+                    case Category.Value:
+                    case Category.String:
+                        // We assume that measures are numeric, so a cast to a string or
+                        // general value expression is more expensive (cost=4) than a
+                        // conversion to a numeric expression (cost=3).
+                        conversions.add(new ConversionImpl(from, to, ordinal, 2, null));
+                        return true;
+                    case Category.Dimension:
+                    case Category.Hierarchy:
+                    case Category.Level:
+                    case Category.Tuple:
+                        conversions.add(new ConversionImpl(from, to, ordinal, 3, null));
+                        return true;
+                    case Category.Set:
+                        conversions.add(new ConversionImpl(from, to, ordinal, 4, null));
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+            else {
+                switch (to) {
+                    case Category.Dimension:
+                    case Category.Hierarchy:
+                    case Category.Level:
+                    case Category.Tuple:
+                        conversions.add(new ConversionImpl(from, to, ordinal, 1, null));
+                        return true;
+                    case Category.Set:
+                        conversions.add(new ConversionImpl(from, to, ordinal, 2, null));
+                        return true;
+                    case Category.Numeric:
+                        conversions.add(new ConversionImpl(from, to, ordinal, 3, null));
+                        return true;
+                    case Category.Value:
+                    case Category.String:
+                        // We assume that measures are numeric, so a cast to a string or
+                        // general value expression is more expensive (cost=4) than a
+                        // conversion to a numeric expression (cost=3).
+                        conversions.add(new ConversionImpl(from, to, ordinal, 4, null));
+                        return true;
+                    default:
+                        return false;
+                }
             }
         case Category.Numeric | Category.Constant:
             switch (to) {
@@ -434,15 +455,11 @@ public class TypeUtil {
             }
         case Category.Tuple:
             switch (to) {
+            case Category.Numeric:
+                conversions.add(new ConversionImpl(from, to, ordinal, 3, null));
+                return true;
             case Category.Set:
                 conversions.add(new ConversionImpl(from, to, ordinal, 2, null));
-                return true;
-            case Category.Numeric:
-                // It is more expensive to convert from Tuple->Scalar (cost=4)
-                // than Tuple->Set (cost=3). In particular, we want 'tuple *
-                // set' to resolve to the crossjoin operator, '{tuple} * set'.
-                // This is analogous to Member->Numeric conversion.
-                conversions.add(new ConversionImpl(from, to, ordinal, 3, null));
                 return true;
             case Category.String:
             case Category.Value:

@@ -37,7 +37,7 @@ import static mondrian.rolap.RolapConnectionProperties.UseSchemaPool;
  * <p>To lookup a schema, call
  * <code>RolapSchemaPool.{@link #instance}().{@link #get}</code>.</p>
  */
-class RolapSchemaPool {
+public class RolapSchemaPool {
     static final Logger LOGGER = LogManager.getLogger(RolapSchemaPool.class);
 
     private static final RolapSchemaPool INSTANCE = new RolapSchemaPool();
@@ -59,7 +59,7 @@ class RolapSchemaPool {
     private RolapSchemaPool() {
     }
 
-    static RolapSchemaPool instance() {
+    public static RolapSchemaPool instance() {
         return INSTANCE;
     }
 
@@ -112,6 +112,8 @@ class RolapSchemaPool {
             Boolean.parseBoolean(
                 connectInfo.get(
                     RolapConnectionProperties.UseContentChecksum.name()));
+        final String sessionId = connectInfo.get(
+                "sessionId");
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
                 "get: catalog=" + catalogUrl
@@ -132,7 +134,8 @@ class RolapSchemaPool {
                 catalogUrl,
                 connectionKey,
                 jdbcUser,
-                dataSourceStr);
+                dataSourceStr,
+                sessionId);
 
         final String catalogStr = getSchemaContent(connectInfo, catalogUrl);
         final SchemaContentKey schemaContentKey =
@@ -463,7 +466,7 @@ class RolapSchemaPool {
         remove(key);
     }
 
-    void remove(RolapSchema schema) {
+    public void remove(RolapSchema schema) {
         if (schema != null) {
             if (RolapSchema.LOGGER.isDebugEnabled()) {
                 RolapSchema.LOGGER.debug(
@@ -529,7 +532,7 @@ class RolapSchemaPool {
      *
      * @return List of schemas in this pool
      */
-    List<RolapSchema> getRolapSchemas() {
+    public List<RolapSchema> getRolapSchemas() {
         lock.readLock().lock();
         try {
             List<RolapSchema> list = new ArrayList<RolapSchema>();

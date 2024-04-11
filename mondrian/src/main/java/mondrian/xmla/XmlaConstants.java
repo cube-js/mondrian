@@ -6,10 +6,12 @@
 //
 // Copyright (C) 2001-2005 Julian Hyde
 // Copyright (C) 2005-2017 Hitachi Vantara and others
+// Copyright (C) 2019 Topsoft
 // All Rights Reserved.
 */
 package mondrian.xmla;
 
+import org.olap4j.metadata.XmlaConstant;
 /**
  * Constants for XML/A.
  *
@@ -51,6 +53,9 @@ public interface XmlaConstants {
 
     public static final String SOAP_PREFIX = "SOAP-ENV";
 
+    public static final String NS_AS_ENGINE =
+        "http://schemas.microsoft.com/analysisservices/2003/engine";
+
     /**
      * Soap Header mustUnderstand attribute name.
      */
@@ -78,6 +83,10 @@ public interface XmlaConstants {
     // Username and password tokens
     public static final String CONTEXT_XMLA_USERNAME = "username";
     public static final String CONTEXT_XMLA_PASSWORD = "password";
+
+    // Authenticated User and Groups
+    public static final String CONTEXT_XMLA_AUTHENTICATED_USER = "AuthenticatedUser";
+    public static final String CONTEXT_XMLA_AUTHENTICATED_USER_GROUPS = "AuthenticatedUserGroups";
 
     // context key for session state storage
     public static final String CONTEXT_XMLA_SESSION_STATE = "SessionState";
@@ -319,6 +328,134 @@ public interface XmlaConstants {
     // While this is actually "unknown", for users "internal"
     // is a better term
     public static final String UNKNOWN_ERROR_FAULT_FS = "Internal Error";
+
+    public enum Literal implements XmlaConstant {
+        CATALOG_NAME(
+                2, null, 24, ".", "0123456789", 2,
+                "A catalog name in a text command."),
+        CATALOG_SEPARATOR(3, ".", 0, null, null, 3, null),
+        COLUMN_ALIAS(5, null, -1, "'\"[]", "0123456789", 5, null),
+        COLUMN_NAME(6, null, -1, ".", "0123456789", 6, null),
+        CORRELATION_NAME(7, null, -1, "'\"[]", "0123456789", 7, null),
+        CUBE_NAME(21, null, -1, ".", "0123456789", 21, null),
+        DIMENSION_NAME(22, null, -1, ".", "0123456789", 22, null),
+        HIERARCHY_NAME(23, null, -1, ".", "0123456789", 23, null),
+        LEVEL_NAME(24, null, -1, ".", "0123456789", 24, null),
+        MEMBER_NAME(25, null, -1, ".", "0123456789", 25, null),
+        PROCEDURE_NAME(14, null, -1, ".", "0123456789", 14, null),
+        PROPERTY_NAME(26, null, -1, ".", "0123456789", 26, null),
+        QUOTE(
+                15, "[", -1, null, null, 15,
+                "The character used in a text command as the opening quote for "
+                        + "quoting identifiers that contain special characters."),
+        QUOTE_SUFFIX(
+                28, "]", -1, null, null, 28,
+                "The character used in a text command as the closing quote for "
+                        + "quoting identifiers that contain special characters. 1.x "
+                        + "providers that use the same character as the prefix and suffix "
+                        + "may not return this literal value and can set the lt member of "
+                        + "the DBLITERAL structure to DBLITERAL_INVALID if requested."),
+        TABLE_NAME(17, null, -1, ".", "0123456789", 17, null),
+        TEXT_COMMAND(
+                18, null, -1, null, null, 18,
+                "A text command, such as an SQL statement."),
+        USER_NAME(19, null, 0, null, null, 19, null);
+
+        // Enum DBLITERALENUM and DBLITERALENUM20, OLEDB.H.
+        //
+        // public static final int DBLITERAL_INVALID   = 0,
+        //   DBLITERAL_BINARY_LITERAL    = 1,
+        //   DBLITERAL_CATALOG_NAME  = 2,
+        //   DBLITERAL_CATALOG_SEPARATOR = 3,
+        //   DBLITERAL_CHAR_LITERAL  = 4,
+        //   DBLITERAL_COLUMN_ALIAS  = 5,
+        //   DBLITERAL_COLUMN_NAME   = 6,
+        //   DBLITERAL_CORRELATION_NAME  = 7,
+        //   DBLITERAL_CURSOR_NAME   = 8,
+        //   DBLITERAL_ESCAPE_PERCENT    = 9,
+        //   DBLITERAL_ESCAPE_UNDERSCORE = 10,
+        //   DBLITERAL_INDEX_NAME    = 11,
+        //   DBLITERAL_LIKE_PERCENT  = 12,
+        //   DBLITERAL_LIKE_UNDERSCORE   = 13,
+        //   DBLITERAL_PROCEDURE_NAME    = 14,
+        //   DBLITERAL_QUOTE = 15,
+        //   DBLITERAL_QUOTE_PREFIX = DBLITERAL_QUOTE,
+        //   DBLITERAL_SCHEMA_NAME   = 16,
+        //   DBLITERAL_TABLE_NAME    = 17,
+        //   DBLITERAL_TEXT_COMMAND  = 18,
+        //   DBLITERAL_USER_NAME = 19,
+        //   DBLITERAL_VIEW_NAME = 20,
+        //   DBLITERAL_CUBE_NAME = 21,
+        //   DBLITERAL_DIMENSION_NAME    = 22,
+        //   DBLITERAL_HIERARCHY_NAME    = 23,
+        //   DBLITERAL_LEVEL_NAME    = 24,
+        //   DBLITERAL_MEMBER_NAME   = 25,
+        //   DBLITERAL_PROPERTY_NAME = 26,
+        //   DBLITERAL_SCHEMA_SEPARATOR  = 27,
+        //   DBLITERAL_QUOTE_SUFFIX  = 28;
+
+        private int xmlaOrdinal;
+        private final String literalValue;
+        private final int literalMaxLength;
+        private final String literalInvalidChars;
+        private final String literalInvalidStartingChars;
+        private final int literalNameEnumValue;
+        private final String description;
+
+        Literal(
+                int xmlaOrdinal,
+                String literalValue,
+                int literalMaxLength,
+                String literalInvalidChars,
+                String literalInvalidStartingChars,
+                int literalNameEnumValue,
+                String description)
+        {
+            this.xmlaOrdinal = xmlaOrdinal;
+            this.literalValue = literalValue;
+            this.literalMaxLength = literalMaxLength;
+            this.literalInvalidChars = literalInvalidChars;
+            this.literalInvalidStartingChars = literalInvalidStartingChars;
+            this.literalNameEnumValue = literalNameEnumValue;
+            this.description = description;
+        }
+
+        public String getLiteralName() {
+            return xmlaName();
+        }
+
+        public String getLiteralValue() {
+            return literalValue;
+        }
+
+        public String getLiteralInvalidChars() {
+            return literalInvalidChars;
+        }
+
+        public String getLiteralInvalidStartingChars() {
+            return literalInvalidStartingChars;
+        }
+
+        public int getLiteralMaxLength() {
+            return literalMaxLength;
+        }
+
+        public int getLiteralNameEnumValue() {
+            return literalNameEnumValue;
+        }
+
+        public String xmlaName() {
+            return "DBLITERAL_" + name();
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public int xmlaOrdinal() {
+            return xmlaOrdinal;
+        }
+    }
 
 }
 
