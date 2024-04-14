@@ -1985,6 +1985,11 @@ public class Query extends QueryPart {
             list.addAll(super.getNamespaces());
             return list;
         }
+
+        @Override
+        public int countMemberChildren(Member parentMember) {
+            return schemaReader.countMemberChildren( parentMember );
+        }
     }
 
     private static class ConnectionParameterImpl
@@ -2101,6 +2106,11 @@ public class Query extends QueryPart {
             list.add(this);
             list.addAll(super.getNamespaces());
             return list;
+        }
+
+        @Override
+        public int countMemberChildren(Member parentMember) {
+            return getMemberChildren( parentMember ).size();
         }
 
         @Override
