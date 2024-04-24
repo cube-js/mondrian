@@ -6133,6 +6133,16 @@
      public String getSessionId() {
        return request.getSessionId();
      }
+
+    @Override
+    public String getAuthenticatedUser() {
+      return request.getAuthenticatedUser();
+    }
+
+    @Override
+    public String[] getAuthenticatedUserGroups() {
+      return request.getAuthenticatedUserGroups();
+    }
    }
  
    /**

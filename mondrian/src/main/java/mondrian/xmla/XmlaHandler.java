@@ -6,10 +6,6 @@
 //
 // Copyright (C) 2003-2005 Julian Hyde
 // Copyright (C) 2005-2018 Hitachi Vantara
-// Copyright (C) 2019 Topsoft
-// Copyright (C) 2020-2023 Sergei Semenkov
-// Copyright (C) 2023 Riccardo Gusmeroli
-
 // All Rights Reserved.
 */
 package mondrian.xmla;
@@ -17,9 +13,6 @@ package mondrian.xmla;
 import mondrian.olap.MondrianProperties;
 import mondrian.olap.Util;
 import mondrian.olap4j.IMondrianOlap4jProperty;
-import mondrian.olap4j.MondrianOlap4jConnection;
-import mondrian.rolap.SqlStatement;
-import mondrian.server.FileRepository;
 import mondrian.util.CompositeList;
 import mondrian.xmla.impl.DefaultSaxWriter;
 import org.apache.logging.log4j.LogManager;
@@ -107,12 +100,6 @@ import static org.olap4j.metadata.XmlaConstants.AxisFormat;
 import static org.olap4j.metadata.XmlaConstants.Content;
 import static org.olap4j.metadata.XmlaConstants.Format;
 import static org.olap4j.metadata.XmlaConstants.Method;
-
-import mondrian.rolap.RolapDrillThroughAction;
-import mondrian.rolap.RolapDrillThroughColumn;
-import mondrian.rolap.RolapSchema;
-
-import mondrian.server.Locus;
 
 /**
  * An <code>XmlaHandler</code> responds to XML for Analysis (XML/A) requests.
@@ -233,512 +220,6 @@ public class XmlaHandler {
     return sw.toString();
   }
 
-    private static String computeEmptyXsd(SetType setType) {
-        final StringWriter sw = new StringWriter();
-        SaxWriter writer = new DefaultSaxWriter(new PrintWriter(sw), 3);
-        writeEmptyDatasetXmlSchema(writer, setType);
-        writer.flush();
-        return sw.toString();
-    }
-
-    private static interface QueryResult {
-        void unparse(SaxWriter res) throws SAXException, OlapException, SQLException;
-        void close() throws SQLException;
-        void metadata(SaxWriter writer);
-    }
-
-    /**
-     * Creates an <code>XmlaHandler</code>.
-     *
-     * <p>The connection factory may be null, as long as you override
-     * {@link #getConnection(String, String, String, Properties)}.
-     *
-     * @param connectionFactory Connection factory
-     * @param prefix XML Namespace. Typical value is "xmla", but a value of
-     *   "cxmla" works around an Internet Explorer 7 bug
-     */
-    public XmlaHandler(ConnectionFactory connectionFactory, String prefix)
-    {
-        assert prefix != null;
-        this.connectionFactory = connectionFactory;
-        this.prefix = prefix;
-    }
-
-    /**
-     * Processes a request.
-     *
-     * @param request  XML request, for example, "<SOAP-ENV:Envelope ...>".
-     * @param response Destination for response
-     * @throws XmlaException on error
-     */
-    public void process(XmlaRequest request, XmlaResponse response)
-        throws XmlaException
-    {
-        Method method = request.getMethod();
-        long start = System.currentTimeMillis();
-
-        switch (method) {
-        case DISCOVER:
-            discover(request, response);
-            break;
-        case EXECUTE:
-            execute(request, response);
-            break;
-        default:
-            throw new XmlaException(
-                CLIENT_FAULT_FC,
-                HSB_BAD_METHOD_CODE,
-                HSB_BAD_METHOD_FAULT_FS,
-                new IllegalArgumentException(
-                    "Unsupported XML/A method: " + method));
-        }
-        if (LOGGER.isDebugEnabled()) {
-            long end = System.currentTimeMillis();
-            LOGGER.debug("XmlaHandler.process: time = " + (end - start));
-            LOGGER.debug("XmlaHandler.process: " + Util.printMemory());
-        }
-    }
-
-    private void checkFormat(XmlaRequest request) throws XmlaException {
-        // Check response's rowset format in request
-        final Map<String, String> properties = request.getProperties();
-        if (request.isDrillThrough()) {
-            Format format = getFormat(request, null);
-            if (format != Format.Tabular) {
-                throw new XmlaException(
-                    CLIENT_FAULT_FC,
-                    HSB_DRILL_THROUGH_FORMAT_CODE,
-                    HSB_DRILL_THROUGH_FORMAT_FAULT_FS,
-                    new UnsupportedOperationException(
-                        "<Format>: only 'Tabular' allowed when drilling "
-                        + "through"));
-            }
-        } else {
-            final String formatName =
-                properties.get(PropertyDefinition.Format.name());
-            if (formatName != null) {
-                Format format = getFormat(request, null);
-                if (format != Format.Multidimensional
-                    && format != Format.Tabular
-                    && format != Format.Native)
-                {
-                    //Galaktika: Support for Native format
-                    throw new UnsupportedOperationException(
-                        "<Format>: only 'Multidimensional', 'Tabular' and 'Native' "
-                        + "currently supported");
-                }
-            }
-            final String axisFormatName =
-                properties.get(PropertyDefinition.AxisFormat.name());
-            if (axisFormatName != null) {
-                AxisFormat axisFormat = Util.lookup(
-                    AxisFormat.class, axisFormatName, null);
-
-                if (axisFormat != AxisFormat.TupleFormat) {
-                    throw new UnsupportedOperationException(
-                        "<AxisFormat>: only 'TupleFormat' currently supported");
-                }
-            }
-        }
-    }
-
-    private ArrayList<XmlaRequest> currentRequests = new ArrayList<XmlaRequest>();
-
-    private void checkedCanceled(XmlaRequest request) {
-        String canceled = request.getProperties().get("CANCELED");
-        if(canceled != null && canceled.equals("true")) {
-            throw new XmlaException(
-                    CLIENT_FAULT_FC,
-                    "3238658121",
-                    "",
-                    new Exception("The query was canceled by user.")
-            );
-        }
-    }
-
-    private void execute(
-        XmlaRequest request,
-        XmlaResponse response)
-        throws XmlaException
-    {
-        mondrian.xmla.impl.DefaultXmlaRequest defaultXmlaRequest = (mondrian.xmla.impl.DefaultXmlaRequest)request;
-
-        currentRequests.add(request);
-
-        final Map<String, String> properties = request.getProperties();
-
-        // Default responseMimeType is SOAP.
-        Enumeration.ResponseMimeType responseMimeType =
-                getResponseMimeType(request);
-
-        // Default value is SchemaData, or Data for JSON responses.
-        final String contentName =
-                properties.get(PropertyDefinition.Content.name());
-        Content content = Util.lookup(
-                Content.class,
-                contentName,
-                responseMimeType == Enumeration.ResponseMimeType.JSON
-                        ? Content.Data
-                        : Content.DEFAULT);
-
-        // Handle execute
-        QueryResult result = null;
-
-        try {
-
-            if(defaultXmlaRequest.getCommand().toUpperCase().equals("CANCEL")){
-                try {
-                    final OlapConnection connection1 = getConnection(request, Collections.<String, String>emptyMap());
-                    final mondrian.rolap.RolapConnection rolapConnection1 =
-                            ((mondrian.olap4j.MondrianOlap4jConnection) connection1).getMondrianConnection();
-
-                    for(XmlaRequest xmlaRequest: currentRequests){
-                        if(xmlaRequest.getSessionId().equals(rolapConnection1.getConnectInfo().get("sessionId"))){
-                            ((mondrian.xmla.impl.DefaultXmlaRequest)xmlaRequest).setProperty("CANCELED", "true");
-                        }
-                    }
-
-                    mondrian.olap.MondrianServer mondrianServer =
-                            mondrian.olap.MondrianServer.forConnection(rolapConnection1);
-                    String sessionId = rolapConnection1.getConnectInfo().get("sessionId");
-                    for(mondrian.server.Statement statement: mondrianServer.getStatements(sessionId)) {
-                        if(statement.getMondrianConnection().getConnectInfo().get("sessionId").equals(rolapConnection1.getConnectInfo().get("sessionId"))){
-                            statement.cancel();
-                        }
-                    }
-                    for(XmlaRequest xmlaRequest: currentRequests){
-                        if(xmlaRequest.getSessionId().equals(sessionId)){
-                            ((mondrian.xmla.impl.DefaultXmlaRequest)xmlaRequest).setProperty("CANCELED", "true");
-                        }
-                    }
-                } catch (org.olap4j.OlapException oe) {
-                    throw new XmlaException(
-                            CLIENT_FAULT_FC,
-                            "3238658121",
-                            USM_DOM_PARSE_FAULT_FS,
-                            oe);
-                } catch (java.sql.SQLException oe) {
-                    throw new XmlaException(
-                            CLIENT_FAULT_FC,
-                            "3238658121",
-                            USM_DOM_PARSE_FAULT_FS,
-                            oe);
-                }
-            }
-            else if(defaultXmlaRequest.getCommand().toUpperCase().equals("ALTER")) {
-                boolean validate =  "true".equals(defaultXmlaRequest.getProperties().get("Validate"));
-                boolean alterDatabase = "Database".equals(defaultXmlaRequest.getProperties().get("ObjectType"));
-                boolean alterSchema = "Schema".equals(defaultXmlaRequest.getProperties().get("ObjectType"));
-
-                if(alterDatabase) {
-                    final OlapConnection connection1 = getConnection(request, Collections.<String, String>emptyMap());
-                    final mondrian.rolap.RolapConnection rolapConnection1 =
-                            ((mondrian.olap4j.MondrianOlap4jConnection) connection1).getMondrianConnection();
-                    final mondrian.olap.MondrianServer mondrianServer =
-                            mondrian.olap.MondrianServer.forConnection(rolapConnection1);
-                    final mondrian.server.Repository repository = mondrianServer.getRepository();
-                    if(repository instanceof FileRepository) {
-                        mondrian.server.FileRepository fileRepository = (FileRepository)repository;
-                        final String objectDefinition = ((mondrian.xmla.impl.DefaultXmlaRequest) request).getObjectDefinition();
-                        fileRepository.setContent(objectDefinition);
-                    }
-                }
-                else if(alterSchema) {
-                    final ServerObject serverObject = ((mondrian.xmla.impl.DefaultXmlaRequest) request).getServerObject();
-                    if (serverObject != null) {
-                        final OlapConnection connection1 = getConnection(null, serverObject.getDatabaseID(), null);
-
-                        try {
-
-                            final mondrian.rolap.RolapConnection rolapConnection1 =
-                                    ((mondrian.olap4j.MondrianOlap4jConnection) connection1).getMondrianConnection();
-                            final String catalogUrl = rolapConnection1.getCatalogName();
-                            final String objectDefinition = ((mondrian.xmla.impl.DefaultXmlaRequest) request).getObjectDefinition();
-
-                            //Try to create a schema to check xml.
-                            mondrian.rolap.RolapSchema prevSchema = rolapConnection1.getSchema();
-
-                            if (validate) {
-//                        if (true) {
-                                List<Column> columns = new ArrayList<>();
-                                columns.add(
-                                        new Column("Text", Types.VARCHAR, 0)
-                                );
-                                List<Object[]> rows = new ArrayList<Object[]>();
-
-                                try {
-                                    mondrian.rolap.RolapSchema rolapSchema = new mondrian.rolap.RolapSchema(
-                                            prevSchema.getKey(),
-                                            null,
-                                            catalogUrl,
-                                            objectDefinition,
-                                            rolapConnection1.getConnectInfo(),
-                                            null
-                                    );
-                                } catch (RuntimeException e) {
-                                    rows.add(new Object[]{e.getMessage()});
-                                }
-
-                                result = new TabularRowSet(columns, rows);
-                            } else {
-                                mondrian.rolap.RolapSchema rolapSchema = new mondrian.rolap.RolapSchema(
-                                        prevSchema.getKey(),
-                                        null,
-                                        catalogUrl,
-                                        objectDefinition,
-                                        rolapConnection1.getConnectInfo(),
-                                        null
-                                );
-
-                                String filePath = java.net.URI.create(catalogUrl).getPath();
-                                java.io.BufferedWriter out = new java.io.BufferedWriter(new java.io.FileWriter(filePath));
-                                try {
-                                    out.write(objectDefinition);
-                                } finally {
-                                    out.close();
-                                }
-                            }
-                        } catch (org.olap4j.OlapException oe) {
-                            throw new XmlaException(
-                                    CLIENT_FAULT_FC,
-                                    "3238658121",
-                                    USM_DOM_PARSE_FAULT_FS,
-                                    oe);
-                        } catch (java.io.IOException e) {
-                            throw new XmlaException(
-                                    CLIENT_FAULT_FC,
-                                    "3238658121",
-                                    USM_DOM_PARSE_FAULT_FS,
-                                    e);
-                        }
-
-                    }
-                }
-            }
-            else if(defaultXmlaRequest.getCommand().toUpperCase().equals("STATEMENT")) {
-                final OlapConnection connection = getConnection(request, Collections.<String, String>emptyMap());
-                final mondrian.rolap.RolapConnection rolapConnection =
-                        ((mondrian.olap4j.MondrianOlap4jConnection) connection).getMondrianConnection();
-                final String mdx = request.getStatement();
-                QueryPart queryPart = null;
-                if(mdx != null && !mdx.isEmpty()) {
-                    queryPart = rolapConnection.parseStatement(mdx);
-                }
-
-                if (queryPart instanceof DrillThrough) {
-                    result = executeDrillThroughQuery(request);
-                } else if (queryPart instanceof CalculatedFormula) {
-                    CalculatedFormula calculatedFormula = (CalculatedFormula)queryPart;
-                    Formula formula = calculatedFormula.getFormula();
-                    final mondrian.rolap.RolapSchema schema = rolapConnection.getSchema();
-                    final mondrian.rolap.RolapCube cube = (mondrian.rolap.RolapCube)
-                            schema.lookupCube(calculatedFormula.getCubeName(), true);
-                    if(formula.isMember()){
-                        cube.createCalculatedMember(formula);
-                    }
-                    else {
-                        cube.createNamedSet(formula);
-                    }
-                } else if (queryPart instanceof DmvQuery) {
-                    DmvQuery dmvQuery = (DmvQuery)queryPart;
-
-                    HashMap<String, String> upperCaseProperties = new HashMap<String, String>();
-                    for (String key : request.getProperties().keySet()) {
-                        String newKey = null;
-                        if(key != null) {
-                            newKey = key.toUpperCase();
-                        }
-                        upperCaseProperties.put(newKey, request.getProperties().get(key));
-                    }
-
-                    HashMap<String, Object> restrictions = new HashMap<String, Object>();
-                    if(upperCaseProperties.containsKey(PropertyDefinition.Catalog.name().toUpperCase())) {
-                        List<String> restriction = new ArrayList<String>();
-                        restriction.add(request.getProperties().get("Catalog"));
-                        restrictions.put(
-                                Property.StandardMemberProperty.CATALOG_NAME.name(),
-                                restriction);
-                    }
-                    mondrian.xmla.impl.DmvXmlaRequest dmvXmlaRequest = new mondrian.xmla.impl.DmvXmlaRequest(
-                            restrictions,
-                            request.getProperties(),
-                            request.getRoleName(),
-                            dmvQuery.getTableName().toUpperCase(),
-                            request.getUsername(),
-                            request.getPassword(),
-                            request.getSessionId()
-                    );
-
-                    executeDmvQuery(
-                            dmvXmlaRequest,
-                            response,
-                            dmvQuery.getTableName().toUpperCase(),
-                            dmvQuery.getWhereExpression(),
-                            defaultXmlaRequest.getParameters()
-                    );
-
-                    return;
-                } else if (queryPart instanceof Refresh) {
-                    Refresh refresh = (Refresh)queryPart;
-                    final mondrian.rolap.RolapSchema schema = rolapConnection.getSchema();
-                    final mondrian.rolap.RolapCube cube = (mondrian.rolap.RolapCube)
-                            schema.lookupCube(refresh.getCubeName(), true);
-                    cube.flushCache(rolapConnection);
-                } else if (queryPart instanceof Update) {
-                    Update update = (Update)queryPart;
-                    final mondrian.rolap.RolapSchema schema = rolapConnection.getSchema();
-                    for(Update.UpdateClause updateClause: update.getUpdateClauses()) {
-                        StringWriter sw = new StringWriter();
-                        PrintWriter pw = new mondrian.mdx.QueryPrintWriter(sw);
-                        updateClause.getTupleExp().unparse(pw);
-                        String tupleString = sw.toString();
-
-                        PreparedOlapStatement pstmt = connection.prepareOlapStatement(
-                                "SELECT "
-                                        + tupleString
-                                        + " ON 0 FROM "
-                                        + update.getCubeName()
-                                        + " CELL PROPERTIES CELL_ORDINAL"
-                        );
-                        CellSet cellSet = pstmt.executeQuery();
-                        CellSetAxis axis = cellSet.getAxes().get(0);
-                        if(axis.getPositionCount() == 0) {
-                            //Empty tuple exception
-                        }
-                        if (axis.getPositionCount() == 1) {
-                            //More than one tuple exception
-                        }
-                        Cell writeBackCell = cellSet.getCell(Arrays.asList(0));
-
-                        sw = new StringWriter();
-                        pw = new mondrian.mdx.QueryPrintWriter(sw);
-                        updateClause.getValueExp().unparse(pw);
-                        String valueString = sw.toString();
-
-                        pstmt = connection.prepareOlapStatement(
-                                "WITH MEMBER [Measures].[m1] AS "
-                                        + valueString
-                                        + " SELECT [Measures].[m1] ON 0 FROM "
-                                        + update.getCubeName()
-                                        + " CELL PROPERTIES VALUE"
-                        );
-                        cellSet = pstmt.executeQuery();
-                        Cell cell = cellSet.getCell(Arrays.asList(0));
-                        Double doubleValue = cell.getDoubleValue();
-
-                        writeBackCell.setValue(doubleValue, AllocationPolicy.EQUAL_ALLOCATION);
-                    }
-                } else if (queryPart instanceof TransactionCommand) {
-                    TransactionCommand transactionCommand = (TransactionCommand)queryPart;
-
-                    String sessionId = request.getSessionId();
-                    Session session = Session.get(sessionId);
-                    if(transactionCommand.getCommand() == TransactionCommand.Command.BEGIN) {
-                        Scenario scenario = connection.createScenario();
-                        session.setScenario(scenario);
-                    }
-                    else if(transactionCommand.getCommand() == TransactionCommand.Command.ROLLBACK) {
-                        session.setScenario(null);
-                    }
-                    else if(transactionCommand.getCommand() == TransactionCommand.Command.COMMIT) {
-                        session.setScenario(null);
-                    }
-
-                } else {
-                    checkedCanceled(request);
-                    result = executeQuery(request);
-                }
-            }
-
-
-            checkedCanceled(request);
-
-            SaxWriter writer = response.getWriter();
-            writer.startDocument();
-
-            writer.startElement(
-                    "ExecuteResponse",
-                    "xmlns", NS_XMLA);
-            writer.startElement("return");
-            boolean rowset =
-                    request.isDrillThrough()
-                            || Format.Tabular.name().equals(
-                            request.getProperties().get(
-                                    PropertyDefinition.Format.name()));
-            writer.startElement(
-                    "root",
-                    "xmlns",
-                    result == null
-                            ? NS_XMLA_EMPTY
-                            : rowset
-                            ? NS_XMLA_ROWSET
-                            : NS_XMLA_MDDATASET,
-                    "xmlns:xsi", NS_XSI,
-                    "xmlns:xsd", NS_XSD,
-                    "xmlns:EX", NS_XMLA_EX);
-
-            switch (content) {
-                case Schema:
-                case SchemaData:
-                    if (result != null) {
-                        result.metadata(writer);
-                    }
-                /*
-                //Galaktika: Do not write schema for NS_XMLA_EMPTY
-                else {
-                    if (rowset) {
-                        writer.verbatim(EMPTY_ROW_SET_XML_SCHEMA);
-                    } else {
-                        writer.verbatim(EMPTY_MD_DATA_SET_XML_SCHEMA);
-                    }
-                }
-                */
-                    break;
-            }
-
-            try {
-                switch (content) {
-                    case Data:
-                    case SchemaData:
-                    case DataOmitDefaultSlicer:
-                    case DataIncludeDefaultSlicer:
-                        if (result != null) {
-                            result.unparse(writer);
-                        }
-                        break;
-                }
-            } catch (XmlaException xex) {
-                throw xex;
-            } catch (Throwable t) {
-                throw new XmlaException(
-                        SERVER_FAULT_FC,
-                        HSB_EXECUTE_UNPARSE_CODE,
-                        HSB_EXECUTE_UNPARSE_FAULT_FS,
-                        t);
-            } finally {
-                writer.endElement(); // root
-                writer.endElement(); // return
-                writer.endElement(); // ExecuteResponse
-            }
-            checkedCanceled(request);
-            writer.endDocument();
-        } catch (org.olap4j.OlapException oe) {
-            throw new XmlaException(
-                    CLIENT_FAULT_FC,
-                    "3238658121",
-                    USM_DOM_PARSE_FAULT_FS,
-                    oe);
-        } finally {
-            currentRequests.remove(request);
-            if (result != null) {
-                try {
-                    result.close();
-                } catch (SQLException e) {
-                    // ignore
-                }
-            }
-        }
-    }
   private static String computeEmptyXsd( SetType setType ) {
     final StringWriter sw = new StringWriter();
     SaxWriter writer = new DefaultSaxWriter( new PrintWriter( sw ), 3 );
@@ -2510,23 +1991,11 @@ public class XmlaHandler {
     }
   }
 
-    static class Column {
-        private String name;
-        private String encodedName;
-        private final String xsdType;
   static class Column {
     private final String name;
     private final String encodedName;
     private final String xsdType;
 
-        Column(String name, int type, int scale) {
-            this.setName(name);
-
-            this.xsdType = sqlToXsdType(type, scale);
-        }
-
-        public void setName(String name) {
-            this.name = name;
     Column( String name, int type, int scale ) {
       this.name = name;
 
@@ -2605,26 +2074,6 @@ public class XmlaHandler {
         }
       }
 
-            rows = new ArrayList<Object[]>();
-            Object[] row = new Object[columns.size()];
-            for (int k = 0; k < row.length; k++) {
-                row[k] = k;
-            }
-            rows.add(row);
-        }
-
-        public TabularRowSet(
-                List<Column> columns,
-                List<Object[]> rows)
-        {
-            if(columns != null ){
-               this.columns = columns;
-            }
-            if(rows != null) {
-                this.rows = rows;
-                this.totalCount = this.rows.size();
-            }
-        }
       rows = new ArrayList<Object[]>();
       Object[] row = new Object[ columns.size() ];
       for ( int k = 0; k < row.length; k++ ) {
@@ -2650,36 +2099,6 @@ public class XmlaHandler {
         writer.endElement(); // row
       }
 
-            for (Object[] row : rows) {
-                writer.startElement("row");
-                for (int i = 0; i < row.length; i++) {
-                    Object value = row[i];
-                    if(value != null) {
-                        writer.startElement(
-                                columns.get(i).encodedName,
-                                new Object[]{
-                                        "xsi:type",
-                                        columns.get(i).xsdType});
-                        if (value == null) {
-                            writer.characters("null");
-                        } else {
-                            // Excel crashes if there are more than 4 digits after point in BigDecimal
-                            if(value instanceof java.math.BigDecimal) {
-                                value = ((java.math.BigDecimal)value).setScale(4, java.math.RoundingMode.HALF_EVEN);
-                            }
-                            String valueString = value.toString();
-                            if (value instanceof Number) {
-                                valueString =
-                                        XmlaUtil.normalizeNumericString(valueString);
-                            }
-                            writer.characters(valueString);
-                        }
-                        writer.endElement();
-                    }
-                }
-                writer.endElement(); // row
-            }
-        }
       for ( Object[] row : rows ) {
         writer.startElement( "row" );
         for ( int i = 0; i < row.length; i++ ) {
@@ -2772,46 +2191,6 @@ public class XmlaHandler {
     }
   }
 
-    static abstract class MDDataSet implements QueryResult {
-        protected final CellSet cellSet;
-
-        static class CellProperty {
-            String name;
-            String alias;
-            String xsdType;
-
-            public CellProperty(String name, String alias, String xsdType) {
-                this.name = name;
-                this.alias = alias;
-                this.xsdType = xsdType;
-            }
-
-            public String getName() {return this.name; }
-            public String getAlias() {return this.alias; }
-            public String getXsdType() {return this.xsdType; }
-        }
-
-        protected static Map<String, CellProperty> cellPropertyMap =new HashMap<String, CellProperty>() {{
-            put("CELL_ORDINAL", new CellProperty("CELL_ORDINAL", "CellOrdinal", "xsd:unsignedInt"));
-            put("VALUE", new CellProperty("VALUE", "Value", null));
-            put("FORMATTED_VALUE", new CellProperty("FORMATTED_VALUE", "FmtValue", "xsd:string"));
-            put("FORMAT_STRING", new CellProperty("FORMAT_STRING", "FormatString", "xsd:string"));
-            put("LANGUAGE", new CellProperty("LANGUAGE", "Language", "xsd:unsignedInt"));
-            put("BACK_COLOR", new CellProperty("BACK_COLOR", "BackColor", "xsd:unsignedInt"));
-            put("FORE_COLOR", new CellProperty("FORE_COLOR", "ForeColor", "xsd:unsignedInt"));
-            put("FONT_FLAGS", new CellProperty("FONT_FLAGS", "FontFlags", "xsd:int"));
-        }};
-
-        protected static final List<Property> defaultProps =
-            Arrays.asList(
-                rename(StandardMemberProperty.MEMBER_UNIQUE_NAME, "UName"),
-                rename(StandardMemberProperty.MEMBER_CAPTION, "Caption"),
-                rename(StandardMemberProperty.LEVEL_UNIQUE_NAME, "LName"),
-                rename(StandardMemberProperty.LEVEL_NUMBER, "LNum"),
-                rename(StandardMemberProperty.DISPLAY_INFO, "DisplayInfo"));
-
-        protected static final Map<String, StandardMemberProperty> longProps =
-            new HashMap<String, StandardMemberProperty>();
   static abstract class MDDataSet implements QueryResult {
     protected static final List<Property> cellProps =
       Arrays.asList(
@@ -2890,16 +2269,6 @@ public class XmlaHandler {
     }
   }
 
-    static class MDDataSet_Multidimensional extends MDDataSet {
-        private List<Hierarchy> slicerAxisHierarchies;
-        private final boolean omitDefaultSlicerInfo;
-        private final boolean json;
-        private XmlaUtil.ElementNameEncoder encoder =
-            XmlaUtil.ElementNameEncoder.INSTANCE;
-        private XmlaExtra extra;
-        private OlapConnection connection;
-        private mondrian.olap4j.MondrianOlap4jConnection mondrianOlap4jConnection;
-        private List<String> queryCellPropertyNames = new ArrayList<String> ();
   static class MDDataSet_Multidimensional extends MDDataSet {
     private final boolean omitDefaultSlicerInfo;
     private final boolean json;
@@ -2908,37 +2277,6 @@ public class XmlaHandler {
       XmlaUtil.ElementNameEncoder.INSTANCE;
     private XmlaExtra extra;
 
-        protected MDDataSet_Multidimensional(
-            CellSet cellSet,
-            OlapConnection connection,
-            boolean omitDefaultSlicerInfo,
-            boolean json)
-            throws SQLException
-        {
-            super(cellSet);
-            this.omitDefaultSlicerInfo = omitDefaultSlicerInfo;
-            this.json = json;
-            this.mondrianOlap4jConnection =
-                    (mondrian.olap4j.MondrianOlap4jConnection)cellSet.getStatement().getConnection();
-            this.connection = connection;
-            this.extra = getExtra(cellSet.getStatement().getConnection());
-
-            final boolean matchCase =
-                    MondrianProperties.instance().CaseSensitive.get();
-            final mondrian.server.Statement statement =
-                    (mondrian.server.Statement) cellSet.getStatement();
-            for(QueryPart queryPart: statement.getQuery().getCellProperties()){
-                mondrian.olap.CellProperty cellProperty = (mondrian.olap.CellProperty)queryPart;
-                mondrian.olap.Property property = mondrian.olap.Property.lookup(cellProperty.toString(), matchCase);
-                String propertyName = ((mondrian.olap.Id.NameSegment)
-                        mondrian.olap.Util.parseIdentifier(cellProperty.toString()).get(0)).name;
-                queryCellPropertyNames.add(propertyName);
-            }
-            if(queryCellPropertyNames.size() == 0) {
-                queryCellPropertyNames.add("VALUE");
-                queryCellPropertyNames.add("FORMATTED_VALUE");
-            }
-        }
     protected MDDataSet_Multidimensional(
       CellSet cellSet,
       boolean omitDefaultSlicerInfo,
@@ -2950,13 +2288,6 @@ public class XmlaHandler {
       this.extra = getExtra( cellSet.getStatement().getConnection() );
     }
 
-        public void unparse(SaxWriter writer)
-            throws SAXException, OlapException, SQLException
-        {
-            olapInfo(writer);
-            axes(writer);
-            cellData(writer);
-        }
     public void unparse( SaxWriter writer )
       throws SAXException, OlapException {
       olapInfo( writer );
@@ -2972,22 +2303,6 @@ public class XmlaHandler {
       // What are all of the cube's hierachies
       Cube cube = cellSet.getMetaData().getCube();
 
-            writer.startElement("OlapInfo");
-            writer.startElement("CubeInfo");
-            writer.startElement("Cube");
-            writer.textElement("CubeName", cube.getName());
-            java.text.Format formatter =
-                    new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            String formattedDate =
-                    formatter.format(this.extra.getSchemaLoadDate(this.mondrianOlap4jConnection.getMondrianOlap4jSchema()));
-            writer.startElement("LastDataUpdate", "xmlns", NS_AS_ENGINE);
-            writer.characters(formattedDate);
-            writer.endElement();
-            writer.startElement("LastSchemaUpdate", "xmlns", NS_AS_ENGINE);
-            writer.characters(formattedDate);
-            writer.endElement();
-            writer.endElement();
-            writer.endElement(); // CubeInfo
       writer.startElement( "OlapInfo" );
       writer.startElement( "CubeInfo" );
       writer.startElement( "Cube" );
@@ -3042,29 +2357,6 @@ public class XmlaHandler {
 
       writer.endSequence(); // AxesInfo
 
-            // -----------
-            writer.startElement("CellInfo");
-
-            for(String cellPropertyName: queryCellPropertyNames){
-                if(cellPropertyName != null) {
-                    cellPropertyName = cellPropertyName.toUpperCase();
-                }
-                CellProperty cellProperty = cellPropertyMap.get(cellPropertyName);
-                List<Object> values = new ArrayList<Object>();
-                values.add("name");
-                values.add(cellPropertyName);
-                if(cellProperty != null && cellProperty.getXsdType() != null) {
-                    values.add("type");
-                    values.add(cellProperty.getXsdType());
-                }
-
-                writer.element(cellProperty.getAlias(), values.toArray());
-            }
-
-            writer.endElement(); // CellInfo
-            // -----------
-            writer.endElement(); // OlapInfo
-        }
       // -----------
       writer.startElement( "CellInfo" );
       cellProperty( writer, StandardCellProperty.VALUE, true, "Value" );
@@ -3144,26 +2436,6 @@ public class XmlaHandler {
       return false;
     }
 
-        private void writeHierarchyInfo(
-            SaxWriter writer,
-            List<Hierarchy> hierarchies,
-            List<Property> props)
-        {
-            writer.startSequence(null, "HierarchyInfo");
-            for (Hierarchy hierarchy : hierarchies) {
-                writer.startElement(
-                    "HierarchyInfo", "name", hierarchy.getUniqueName());
-                for (final Property prop : props) {
-                    if (prop instanceof IMondrianOlap4jProperty) {
-                        writeProperty(writer, hierarchy, prop);
-                    } else {
-                        writeElement(writer, hierarchy, prop);
-                    }
-                }
-                writer.endElement();
-            }
-            writer.endSequence(); // "HierarchyInfo"
-        }
     private void writeHierarchyInfo(
       SaxWriter writer,
       List<Hierarchy> hierarchies,
@@ -3207,23 +2479,6 @@ public class XmlaHandler {
       writer.element( encodedProp, attributes );
     }
 
-        private Object[] getAttributes(Property prop, Hierarchy hierarchy) {
-            Property longProp = longProps.get(prop.getName());
-            if (longProp == null) {
-                longProp = prop;
-            }
-            List<Object> values = new ArrayList<Object>();
-            values.add("name");
-            values.add(
-                hierarchy.getUniqueName()
-                + "."
-                + Util.quoteMdxIdentifier(longProp.getName()));
-            if (!(longProp instanceof IMondrianOlap4jProperty)) {
-                values.add("type");
-                values.add(getXsdType(longProp));
-            }
-            return values.toArray();
-        }
     private Object[] getAttributes( Property prop, Hierarchy hierarchy ) {
       Property longProp = longProps.get( prop.getName() );
       if ( longProp == null ) {
@@ -3261,41 +2516,6 @@ public class XmlaHandler {
       }
     }
 
-        private static boolean DEFAULT_BOOLEAN;
-        private static byte DEFAULT_BYTE;
-        private static short DEFAULT_SHORT;
-        private static int DEFAULT_INT;
-        private static long DEFAULT_LONG;
-        private static float DEFAULT_FLOAT;
-        private static double DEFAULT_DOUBLE;
-
-        private Object getDefaultValue(Property property) {
-            Datatype datatype = property.getDatatype();
-            switch (datatype) {
-                case UNSIGNED_INTEGER:
-                    return DEFAULT_INT;
-                case DOUBLE:
-                    return DEFAULT_DOUBLE;
-                case LARGE_INTEGER:
-                    return DEFAULT_LONG;
-                case INTEGER:
-                    return DEFAULT_INT;
-                case BOOLEAN:
-                    return DEFAULT_BOOLEAN;
-                default:
-                    return null;
-            }
-        }
-
-        private void axes(SaxWriter writer) throws OlapException, SQLException {
-            writer.startSequence("Axes", "Axis");
-            //axis(writer, result.getSlicerAxis(), "SlicerAxis");
-            final List<CellSetAxis> axes = cellSet.getAxes();
-            for (int i = 0; i < axes.size(); i++) {
-                final CellSetAxis axis = axes.get(i);
-                final List<Property> props = getProps(axis.getAxisMetaData());
-                axis(writer, axis, props, "Axis" + i);
-            }
     private void axes( SaxWriter writer ) throws OlapException {
       writer.startSequence( "Axes", "Axis" );
       //axis(writer, result.getSlicerAxis(), "SlicerAxis");
@@ -3306,32 +2526,6 @@ public class XmlaHandler {
         axis( writer, axis, props, "Axis" + i );
       }
 
-            ////////////////////////////////////////////
-            // now generate SlicerAxis information
-            //
-
-            CellSetAxis slicerAxis = cellSet.getFilterAxis();
-            if (omitDefaultSlicerInfo) {
-                // We always write a slicer axis. There are two 'empty' cases:
-                // zero positions (which happens when the WHERE clause evalutes
-                // to an empty set) or one position containing a tuple of zero
-                // members (which happens when there is no WHERE clause) and we
-                // need to be able to distinguish between the two.
-
-                if(slicerAxisHierarchies.size() > 0) {
-                    axis(
-                            writer,
-                            slicerAxis,
-                            getProps(slicerAxis.getAxisMetaData()),
-                            "SlicerAxis");
-                }
-            } else {
-                List<Hierarchy> hierarchies = slicerAxisHierarchies;
-                writer.startElement(
-                    "Axis",
-                    "name", "SlicerAxis");
-                writer.startSequence("Tuples", "Tuple");
-                writer.startSequence("Tuple", "Member");
       ////////////////////////////////////////////
       // now generate SlicerAxis information
       //
@@ -3355,19 +2549,6 @@ public class XmlaHandler {
         writer.startSequence( "Tuples", "Tuple" );
         writer.startSequence( "Tuple", "Member" );
 
-                Map<String, Integer> memberMap = new HashMap<String, Integer>();
-                Member positionMember;
-                final List<Position> slicerPositions =
-                    slicerAxis.getPositions();
-                if (slicerPositions != null
-                    && slicerPositions.size() > 0)
-                {
-                    final Position pos0 = slicerPositions.get(0);
-                    int i = 0;
-                    for (Member member : pos0.getMembers()) {
-                        memberMap.put(member.getHierarchy().getName(), i++);
-                    }
-                }
         Map<String, Integer> memberMap = new HashMap<String, Integer>();
         Member positionMember;
         CellSetAxis slicerAxis = cellSet.getFilterAxis();
@@ -3442,53 +2623,6 @@ public class XmlaHandler {
         queryAxis.getProperties() );
     }
 
-        private void axis(
-            SaxWriter writer,
-            CellSetAxis axis,
-            List<Property> props,
-            String axisName) throws OlapException, SQLException
-        {
-            writer.startElement(
-                "Axis",
-                "name", axisName);
-            writer.startSequence("Tuples", "Tuple");
-
-            HashMap<Level, HashSet<mondrian.olap.Member>> levelMembers = new HashMap<>();
-
-            for (Position p : axis.getPositions()) {
-                for (Member member : p.getMembers()) {
-                    Level level = member.getLevel();
-                    if(!levelMembers.containsKey(level)){
-                        levelMembers.put(level, new HashSet<mondrian.olap.Member>());
-                    }
-                    levelMembers.get(level)
-                            .add(((mondrian.olap4j.MondrianOlap4jMember)member).getOlapMember());
-                }
-            }
-
-            mondrian.rolap.RolapConnection rolapConnection =
-                    ((mondrian.olap4j.MondrianOlap4jConnection)this.connection).getMondrianConnection();
-            final mondrian.server.Statement statement =
-                    (mondrian.server.Statement) cellSet.getStatement();
-
-            for(Map.Entry<Level, HashSet<mondrian.olap.Member>> entry : levelMembers.entrySet()) {
-                Level level = entry.getKey();
-                ArrayList<mondrian.olap.Member> members = new ArrayList<>( entry.getValue() );
-
-                if (members.size() > 0
-                        && members.get(0).getLevel().getChildLevel() != null
-                        && !members.get(0).getLevel().isAll()) {
-                    Locus.execute(
-                            rolapConnection,
-                            "MondrianOlap4jMember.getChildMembers",
-                            new Locus.Action<List<mondrian.olap.Member>>() {
-                                public List<mondrian.olap.Member> execute() {
-                                    return
-                                            statement.getQuery().getSchemaReader(true).getMemberChildren(members);
-                                }
-                            });
-                }
-            }
     private void axis(
       SaxWriter writer,
       CellSetAxis axis,
@@ -3520,62 +2654,6 @@ public class XmlaHandler {
       writer.endElement(); // Axis
     }
 
-        private void writeMember(
-            SaxWriter writer, Member member, Position prevPosition,
-            Position nextPosition, int k, List<Property> props)
-            throws OlapException
-        {
-            writer.startElement(
-                "Member", "Hierarchy", member.getHierarchy().getUniqueName());
-            for (final Property prop : props) {
-                Object value = null;
-                Property longProp = (longProps.get(prop.getName()) != null)
-                    ? longProps.get(prop.getName()) : prop;
-                if (longProp == StandardMemberProperty.DISPLAY_INFO) {
-                    Integer childrenCard = (Integer) member
-                        .getPropertyValue(
-                            StandardMemberProperty.CHILDREN_CARDINALITY);
-                    value = calculateDisplayInfo(
-                        prevPosition, nextPosition, member, k, childrenCard);
-                } else if (longProp == StandardMemberProperty.DEPTH) {
-                    value = member.getDepth();
-                } else {
-                    if(longProp instanceof IMondrianOlap4jProperty) {
-                        IMondrianOlap4jProperty currentProperty =
-                                (IMondrianOlap4jProperty) longProp;
-                        String thisHierarchyName = member.getHierarchy().getName();
-                        String thatHierarchyName = currentProperty.getLevel()
-                                .getHierarchy().getName();
-                        if (thisHierarchyName.equals(thatHierarchyName)) {
-                            value = getHierarchyProperty(member, longProp);
-                        }
-                        else {
-                            // Property belongs to other hierarchy
-                            continue;
-                        }
-                    }
-                    else {
-                        value = member.getPropertyValue(longProp);
-                    }
-                }
-                if(longProp != prop && value == null) {
-                    value = getDefaultValue(prop);
-                }
-                if (value != null) {
-                    if(longProp instanceof IMondrianOlap4jProperty) {
-                        writer.startElement(
-                                encoder.encode(prop.getName()),
-                                "xsi:type", getXsdType(prop));
-                        writer.characters(value);
-                        writer.endElement();
-                    }
-                    else {
-                        writer.textElement(encoder.encode(prop.getName()), value);
-                    }
-                }
-            }
-            writer.endElement(); // Member
-        }
     private void writeMember(
       SaxWriter writer, Member member, Position prevPosition,
       Position nextPosition, int k, List<Property> props )
@@ -3737,26 +2815,6 @@ public class XmlaHandler {
       }
     }
 
-        private void emitCell(
-            SaxWriter writer,
-            List<Integer> pos,
-            int ordinal)
-        {
-            Cell cell = cellSet.getCell(pos);
-
-            Boolean allPropertyIsEmpty = true;
-            for(String propertyName: this.queryCellPropertyNames) {
-                if(((mondrian.olap4j.MondrianOlap4jCell)cell).getRolapCell().getPropertyValue(propertyName) != null) {
-                    allPropertyIsEmpty = false;
-                    break;
-                }
-            }
-
-            if (cell.isNull() && allPropertyIsEmpty && ordinal != 0)
-            {
-                // Ignore null cell like MS AS, except for Oth ordinal
-                return;
-            }
     private void emitCell(
       SaxWriter writer,
       List<Integer> pos,
@@ -3767,21 +2825,6 @@ public class XmlaHandler {
         return;
       }
 
-            writer.startElement(
-                "Cell",
-                "CellOrdinal", ordinal);
-            for(String propertyName: this.queryCellPropertyNames){
-                if(propertyName != null) {
-                    propertyName = propertyName.toUpperCase();
-                }
-                if(propertyName.equals("CELL_ORDINAL")) {
-                    continue;
-                }
-                mondrian.olap4j.MondrianOlap4jCell mondrianOlap4jCell = (mondrian.olap4j.MondrianOlap4jCell)cell;
-                Object value = mondrianOlap4jCell.getRolapCell().getPropertyValue(propertyName);
-                if (value == null) {
-                    continue;
-                }
       writer.startElement(
         "Cell",
         "CellOrdinal", ordinal );
@@ -3796,30 +2839,6 @@ public class XmlaHandler {
           continue;
         }
 
-                if (!json && StandardCellProperty.VALUE.getName().equals(propertyName)) {
-                    if (cell.isNull()) {
-                        // Return cell without value as in case of AS2005
-                        continue;
-                    }
-                    final String dataType =
-                        (String) cell.getPropertyValue(
-                            StandardCellProperty.DATATYPE);
-
-                    //final ValueInfo vi = new ValueInfo(dataType, value);
-                    //will always get real datatype (see ValueInfo logic)
-                    final ValueInfo vi = new ValueInfo(null, value);
-
-                    final String valueType = vi.valueType;
-                    final String valueString;
-                    if (vi.value instanceof Double && (Double)vi.value == Double.POSITIVE_INFINITY){
-                        valueString = "INF";
-                    } else if (vi.isDecimal) {
-                        valueString =
-                            XmlaUtil.normalizeNumericString(
-                                vi.value.toString());
-                    } else {
-                        valueString = vi.value.toString();
-                    }
         if ( !json && cellPropLong == StandardCellProperty.VALUE ) {
           if ( cell.isNull() ) {
             // Return cell without value as in case of AS2005
@@ -3839,18 +2858,6 @@ public class XmlaHandler {
             valueString = vi.value.toString();
           }
 
-                    writer.startElement(
-                            this.cellPropertyMap.get(propertyName).getAlias(),
-                            "xsi:type", valueType);
-                    writer.characters(valueString);
-                    writer.endElement();
-                } else {
-                    writer.textElement(this.cellPropertyMap.get(propertyName).getAlias(), value);
-                }
-            }
-            writer.endElement(); // Cell
-        }
-    }
           writer.startElement(
             cellProps.get( i ).getName(),
             "xsi:type", valueType );
@@ -4299,14 +3306,6 @@ public class XmlaHandler {
       return false;
     }
 
-        public int getMeasureAggregator(Member member) {
-            return RowsetDefinition.MdschemaMeasuresRowset
-                .MDMEASURE_AGGR_UNKNOWN;
-        }
-
-        public String getMeasureDisplayFolder(Member member) {
-            return "";
-        }
     public int getMeasureAggregator( Member member ) {
       return RowsetDefinition.MdschemaMeasuresRowset
         .MDMEASURE_AGGR_UNKNOWN;

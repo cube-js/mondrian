@@ -1,14 +1,12 @@
 /*
-// This software is subject to the terms of the Eclipse Public License v1.0
-// Agreement, available at the following URL:
-// http://www.eclipse.org/legal/epl-v10.html.
-// You must accept the terms of that agreement to use this software.
-//
-// Copyright (C) 2006-2017 Hitachi Vantara
-// Copyright (C) 2019 Topsoft. All rights reserved.
-// Copyright (C) 2021-2022 Sergei Semenkov
-// All Rights Reserved.
-*/
+ * This software is subject to the terms of the Eclipse Public License v1.0
+ * Agreement, available at the following URL:
+ * http://www.eclipse.org/legal/epl-v10.html.
+ * You must accept the terms of that agreement to use this software.
+ *
+ * Copyright (C) 2006-2024 Hitachi Vantara. All rights reserved.
+ */
+
 package mondrian.server;
 
 import mondrian.olap.MondrianException;
@@ -37,6 +35,7 @@ import org.olap4j.OlapConnection;
 
 import java.lang.management.ManagementFactory;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -59,7 +58,7 @@ import static org.apache.commons.collections.map.AbstractReferenceMap.WEAK;
  * @author jhyde
  * @since Jun 25, 2006
  */
-@SuppressWarnings( { "java:S1113", "java:S1168", "java:S1874" } )
+@SuppressWarnings({ "java:S1113", "java:S1168", "java:S1874" })
 class MondrianServerImpl extends MondrianServer implements CatalogFinder, XmlaHandler.ConnectionFactory {
   /**
    * Id of server. Unique within JVM's lifetime. Not the same as the ID of
@@ -84,24 +83,24 @@ class MondrianServerImpl extends MondrianServer implements CatalogFinder, XmlaHa
    * construction, and are removed when they call close. Garbage collection
    * may cause a connection to be removed earlier.
    */
-  @SuppressWarnings( "unchecked" )
+  @SuppressWarnings("unchecked")
   private final Map<Integer, RolapConnection> connectionMap =
-    // We use a reference map here because the value
-    // is what needs to be week, not the key, as it
-    // would be the case with a WeakHashMap.
-    Collections.synchronizedMap( new ReferenceMap( WEAK, WEAK ) );
+      // We use a reference map here because the value
+      // is what needs to be week, not the key, as it
+      // would be the case with a WeakHashMap.
+      Collections.synchronizedMap(new ReferenceMap(WEAK, WEAK));
 
   /**
    * Map of open statements, by id. Statements are added just after
    * construction, and are removed when they call close. Garbage collection
    * may cause a connection to be removed earlier.
    */
-  @SuppressWarnings( "unchecked" )
+  @SuppressWarnings("unchecked")
   private final Map<Long, Statement> statementMap =
-    // We use a reference map here because the value
-    // is what needs to be week, not the key, as it
-    // would be the case with a WeakHashMap.
-    Collections.synchronizedMap( new ReferenceMap( WEAK, WEAK ) );
+      // We use a reference map here because the value
+      // is what needs to be week, not the key, as it
+      // would be the case with a WeakHashMap.
+      Collections.synchronizedMap(new ReferenceMap(WEAK, WEAK));
 
   private final MonitorImpl monitor = new MonitorImpl();
 
@@ -109,12 +108,11 @@ class MondrianServerImpl extends MondrianServer implements CatalogFinder, XmlaHa
 
   private boolean shutdown = false;
 
-  private static final Logger LOGGER = LogManager.getLogger( MondrianServerImpl.class );
+  private static final Logger LOGGER = LogManager.getLogger(MondrianServerImpl.class);
 
   private static final AtomicInteger ID_GENERATOR = new AtomicInteger();
 
-  private static final List<String> KEYWORD_LIST =
-    Collections.unmodifiableList( Arrays.asList(
+  private static final List<String> KEYWORD_LIST = Collections.unmodifiableList(Arrays.asList(
       "$AdjustedProbability", "$Distance", "$Probability",
       "$ProbabilityStDev", "$ProbabilityStdDeV", "$ProbabilityVariance",
       "$StDev", "$StdDeV", "$Support", "$Variance",
@@ -172,7 +170,7 @@ class MondrianServerImpl extends MondrianServer implements CatalogFinder, XmlaHa
       "ToggleDrillState", "TopCount", "TopPercent", "TopSum",
       "TupleToStr", "Under", "Uniform", "UniqueName", "Use", "Value",
       "Value", "Var", "Variance", "VarP", "VarianceP", "VisualTotals",
-      "When", "Where", "With", "WTD", "Xor" ) );
+      "When", "Where", "With", "WTD", "Xor"));
 
   private static final String SERVER_ALREADY_SHUTDOWN = "Server already shutdown.";
 
@@ -184,9 +182,9 @@ class MondrianServerImpl extends MondrianServer implements CatalogFinder, XmlaHa
    * @param catalogLocator Catalog locator
    */
   MondrianServerImpl(
-    MondrianServerRegistry registry,
-    Repository repository,
-    CatalogLocator catalogLocator ) {
+      MondrianServerRegistry registry,
+      Repository repository,
+      CatalogLocator catalogLocator) {
 
     assert repository != null;
     assert catalogLocator != null;
@@ -199,12 +197,12 @@ class MondrianServerImpl extends MondrianServer implements CatalogFinder, XmlaHa
     // entry.
     this.lockBox = registry.lockBox;
 
-    this.aggMgr = new AggregationManager( this );
+    this.aggMgr = new AggregationManager(this);
 
     this.shepherd = new RolapResultShepherd();
 
-    if ( LOGGER.isDebugEnabled() ) {
-      LOGGER.debug( "new MondrianServer: id={}", id );
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("new MondrianServer: id={}", id);
     }
     registerMBean();
   }
@@ -214,9 +212,9 @@ class MondrianServerImpl extends MondrianServer implements CatalogFinder, XmlaHa
     try {
       super.finalize();
 
-      shutdown( true );
-    } catch ( Throwable t ) {
-      LOGGER.info( MondrianResource.instance().FinalizerErrorMondrianServerImpl.baseMessage, t );
+      shutdown(true);
+    } catch (Throwable t) {
+      LOGGER.info(MondrianResource.instance().FinalizerErrorMondrianServerImpl.baseMessage, t);
     }
   }
 
@@ -226,8 +224,8 @@ class MondrianServerImpl extends MondrianServer implements CatalogFinder, XmlaHa
 
   @Override
   public RolapResultShepherd getResultShepherd() {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
     return this.shepherd;
   }
@@ -241,236 +239,232 @@ class MondrianServerImpl extends MondrianServer implements CatalogFinder, XmlaHa
   }
 
   public AggregationManager getAggregationManager() {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
     return aggMgr;
   }
 
   @Override
-  public OlapConnection getConnection( String databaseName, String catalogName, String roleName ) throws SQLException {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+  public OlapConnection getConnection(String databaseName, String catalogName, String roleName) throws SQLException {
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
-    return this.getConnection( databaseName, catalogName, roleName, new Properties() );
+    return this.getConnection(databaseName, catalogName, roleName, new Properties());
   }
 
   @Override
-  public OlapConnection getConnection( String databaseName, String catalogName, String roleName, Properties props )
-    throws SQLException {
+  public OlapConnection getConnection(String databaseName, String catalogName, String roleName, Properties props)
+      throws SQLException {
 
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
-    return repository.getConnection( this, databaseName, catalogName, roleName, props );
+    return repository.getConnection(this, databaseName, catalogName, roleName, props);
   }
 
   public List<String> getCatalogNames(
-    RolapConnection connection ) {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+      RolapConnection connection) {
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
     return repository.getCatalogNames(
-      connection,
-      // We assume that Mondrian supports a single database
-      // per server.
-      repository.getDatabaseNames( connection ).get( 0 ) );
+        connection,
+        // We assume that Mondrian supports a single database
+        // per server.
+        repository.getDatabaseNames(connection).get(0));
   }
 
-  public List<Map<String, Object>> getDatabases( RolapConnection connection ) {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+  public List<Map<String, Object>> getDatabases(RolapConnection connection) {
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
-    return repository.getDatabases( connection );
+    return repository.getDatabases(connection);
   }
 
   @Override
   public CatalogLocator getCatalogLocator() {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
     return catalogLocator;
   }
 
   @Override
   public void shutdown() {
-    this.shutdown( false );
+    this.shutdown(false);
   }
 
-    private void shutdown(boolean silent) {
-        if (this == MondrianServerRegistry.INSTANCE.staticServer) {
-            LOGGER.warn("Can't shutdown the static server.");
-            return;
-        }
-        if (shutdown) {
-            if (silent) {
-                return;
-            }
-            throw new MondrianException("Server already shutdown.");
-        }
-        this.shutdown  = true;
-        aggMgr.shutdown();
-        Session.shutdown();
-        monitor.shutdown();
-        repository.shutdown();
-        shepherd.shutdown();
+  private void shutdown(boolean silent) {
+    if (this == MondrianServerRegistry.INSTANCE.staticServer) {
+      LOGGER.warn("Can't shutdown the static server.");
+      return;
     }
+    if (shutdown) {
+      if (silent) {
+        return;
+      }
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
+    }
+    this.shutdown = true;
+    aggMgr.shutdown();
+    monitor.shutdown();
+    repository.shutdown();
+    shepherd.shutdown();
+  }
 
   @Override
-  public synchronized void addConnection( RolapConnection connection ) {
-    if ( LOGGER.isDebugEnabled() ) {
+  public synchronized void addConnection(RolapConnection connection) {
+    if (LOGGER.isDebugEnabled()) {
       LOGGER.debug(
-        "addConnection , id={}, statements={}, connections={}",
-        id,
-        statementMap.size(),
-        connectionMap.size() );
+          "addConnection , id={}, statements={}, connections={}",
+          id,
+          statementMap.size(),
+          connectionMap.size());
     }
 
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
 
-    connectionMap.put( connection.getId(), connection );
+    connectionMap.put(connection.getId(), connection);
 
-    monitor.sendEvent( new ConnectionStartEvent(
-      System.currentTimeMillis(),
-      connection.getServer().getId(),
-      connection.getId() ) );
+    monitor.sendEvent(new ConnectionStartEvent(
+        System.currentTimeMillis(),
+        connection.getServer().getId(),
+        connection.getId()));
   }
 
   @Override
-  public synchronized void removeConnection( RolapConnection connection ) {
-    if ( LOGGER.isDebugEnabled() ) {
+  public synchronized void removeConnection(RolapConnection connection) {
+    if (LOGGER.isDebugEnabled()) {
       LOGGER.debug(
-        "removeConnection , id={}, statements={}, connections={}",
-        id,
-        statementMap.size(),
-        connectionMap.size() );
+          "removeConnection , id={}, statements={}, connections={}",
+          id,
+          statementMap.size(),
+          connectionMap.size());
     }
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
-    connectionMap.remove( connection.getId() );
-    monitor.sendEvent( new ConnectionEndEvent(
-      System.currentTimeMillis(),
-      getId(),
-      connection.getId() ) );
+    connectionMap.remove(connection.getId());
+    monitor.sendEvent(new ConnectionEndEvent(
+        System.currentTimeMillis(),
+        getId(),
+        connection.getId()));
   }
 
   @Override
-  public RolapConnection getConnection( int connectionId ) {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+  public RolapConnection getConnection(int connectionId) {
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
-    return connectionMap.get( connectionId );
+    return connectionMap.get(connectionId);
   }
 
   @Override
-  public synchronized void addStatement( Statement statement ) {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+  public synchronized void addStatement(Statement statement) {
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
-    if ( LOGGER.isDebugEnabled() ) {
+    if (LOGGER.isDebugEnabled()) {
       LOGGER.debug(
-        "addStatement , id={}, statements={}, connections={}",
-        id,
-        statementMap.size(),
-        connectionMap.size() );
+          "addStatement , id={}, statements={}, connections={}",
+          id,
+          statementMap.size(),
+          connectionMap.size());
     }
 
-    statementMap.put( statement.getId(), statement );
+    statementMap.put(statement.getId(), statement);
 
     final RolapConnection connection = statement.getMondrianConnection();
 
-    monitor.sendEvent( new StatementStartEvent(
-      System.currentTimeMillis(),
-      connection.getServer().getId(),
-      connection.getId(),
-      statement.getId() ) );
+    monitor.sendEvent(new StatementStartEvent(
+        System.currentTimeMillis(),
+        connection.getServer().getId(),
+        connection.getId(),
+        statement.getId()));
   }
 
   @Override
-  public synchronized void removeStatement( Statement statement ) {
-    if ( LOGGER.isDebugEnabled() ) {
+  public synchronized void removeStatement(Statement statement) {
+    if (LOGGER.isDebugEnabled()) {
       LOGGER.debug(
-        "removeStatement , id={}, statements={}, connections={}",
-        id,
-        statementMap.size(),
-        connectionMap.size() );
+          "removeStatement , id={}, statements={}, connections={}",
+          id,
+          statementMap.size(),
+          connectionMap.size());
     }
 
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
 
-    statementMap.remove( statement.getId() );
+    statementMap.remove(statement.getId());
 
     final RolapConnection connection = statement.getMondrianConnection();
 
-    monitor.sendEvent( new StatementEndEvent(
-      System.currentTimeMillis(),
-      connection.getServer().getId(),
-      connection.getId(),
-      statement.getId() ) );
+    monitor.sendEvent(new StatementEndEvent(
+        System.currentTimeMillis(),
+        connection.getServer().getId(),
+        connection.getId(),
+        statement.getId()));
   }
 
   public Monitor getMonitor() {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
     return monitor;
   }
 
-  public Map<String, RolapSchema> getRolapSchemas( RolapConnection connection, String catalogName ) {
-    if ( shutdown ) {
-      throw new MondrianException( SERVER_ALREADY_SHUTDOWN );
+  public Map<String, RolapSchema> getRolapSchemas(RolapConnection connection, String catalogName) {
+    if (shutdown) {
+      throw new MondrianException(SERVER_ALREADY_SHUTDOWN);
     }
 
     return repository.getRolapSchemas(
-      connection,
-      // We assume that Mondrian supports a single database per server.
-      repository.getDatabaseNames( connection ).get( 0 ),
-      catalogName );
+        connection,
+        // We assume that Mondrian supports a single database per server.
+        repository.getDatabaseNames(connection).get(0),
+        catalogName);
   }
 
   public Map<String, Object> getPreConfiguredDiscoverDatasourcesResponse() {
-    // No pre-configured response; XMLA servlet will connect to get the data source info.
+    // No pre-configured response; XMLA servlet will connect to get the data source
+    // info.
     return null;
   }
 
-    /**
-     * Registers the MonitorImpl associated with this server
-     * as an MBean accessible via JMX.
-     */
-    private void registerMBean() {
-        MBeanServer mbs =
-            ManagementFactory.getPlatformMBeanServer();
-        try {
-            ObjectName mxbeanName = new ObjectName(
-                "mondrian.server:type=Server-" + id);
-            mbs.registerMBean(getMonitor(), mxbeanName);
-        } catch (MalformedObjectNameException e) {
-            LOGGER.warn("Failed to register JMX MBean", e);
-        } catch (NotCompliantMBeanException e) {
-            LOGGER.warn("Failed to register JMX MBean", e);
-        } catch (InstanceAlreadyExistsException e) {
-            LOGGER.warn("Failed to register JMX MBean", e);
-        } catch (MBeanRegistrationException e) {
-            LOGGER.warn("Failed to register JMX MBean", e);
-        }
-    }
+  /**
+   * Registers the MonitorImpl associated with this server
+   * as an MBean accessible via JMX.
+   */
+  private void registerMBean() {
+    MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
 
-    public List<Statement> getStatements(String sessionId) {
-        List<Statement> result = new ArrayList<Statement>();
-        for(Statement statement: statementMap.values()) {
-            if(statement.getMondrianConnection().getConnectInfo().get("sessionId").equals(sessionId)) {
-                result.add(statement);
-            }
-        }
-        return result;
+    try {
+      ObjectName mxbeanName = new ObjectName("mondrian.server:type=Server-" + id);
+      mbs.registerMBean(getMonitor(), mxbeanName);
+    } catch (MalformedObjectNameException | NotCompliantMBeanException | InstanceAlreadyExistsException
+        | MBeanRegistrationException e) {
+      LOGGER.warn("Failed to register JMX MBean", e);
     }
+  }
 
-    public Repository getRepository() {
-        return repository;
+  @Override
+  public List<Statement> getStatements(String sessionId) {
+    List<Statement> result = new ArrayList<Statement>();
+    for (Statement statement : statementMap.values()) {
+      if (statement.getMondrianConnection().getConnectInfo().get("sessionId").equals(sessionId)) {
+        result.add(statement);
+      }
     }
+    return result;
+  }
+
+  @Override
+  public Repository getRepository() {
+    return repository;
+  }
 }

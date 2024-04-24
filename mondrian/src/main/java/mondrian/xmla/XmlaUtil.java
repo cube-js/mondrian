@@ -18,6 +18,8 @@ import mondrian.xmla.impl.DefaultXmlaResponse;
 import org.olap4j.OlapConnection;
 import org.olap4j.OlapException;
 import org.olap4j.impl.LcidLocale;
+import org.olap4j.metadata.XmlaConstants.Format;
+import org.olap4j.metadata.XmlaConstants.Method;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -371,6 +373,16 @@ way too noisy
       }
 
       public String getSessionId() {
+        return null;
+      }
+
+      @Override
+      public String getAuthenticatedUser() {
+        return null;
+      }
+
+      @Override
+      public String[] getAuthenticatedUserGroups() {
         return null;
       }
     };
