@@ -22,10 +22,24 @@ import mondrian.olap.MondrianDef;
 import mondrian.olap.MondrianProperties;
 import mondrian.olap.Property;
 import mondrian.olap.Util;
+import mondrian.olap.Access;
+import mondrian.olap.Dimension;
+import mondrian.olap.Evaluator;
+import mondrian.olap.Exp;
+import mondrian.olap.Id;
+import mondrian.olap.Member;
+import mondrian.olap.MondrianDef;
+import mondrian.olap.MondrianProperties;
+import mondrian.olap.Property;
+import mondrian.olap.Util;
 import mondrian.resource.MondrianResource;
 import mondrian.rolap.agg.AggregationManager;
 import mondrian.rolap.agg.CellRequest;
 import mondrian.rolap.aggmatcher.AggStar;
+import mondrian.rolap.sql.MemberChildrenConstraint;
+import mondrian.rolap.sql.MemberKeyConstraint;
+import mondrian.rolap.sql.SqlQuery;
+import mondrian.rolap.sql.TupleConstraint;
 import mondrian.rolap.sql.MemberChildrenConstraint;
 import mondrian.rolap.sql.MemberKeyConstraint;
 import mondrian.rolap.sql.SqlQuery;
@@ -38,11 +52,25 @@ import mondrian.util.CancellationChecker;
 import mondrian.util.CreationException;
 import mondrian.util.ObjectFactory;
 import mondrian.util.Pair;
+import mondrian.util.CancellationChecker;
+import mondrian.util.CreationException;
+import mondrian.util.ObjectFactory;
+import mondrian.util.Pair;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Logger;
 import org.eigenbase.util.property.StringProperty;
 
 import javax.sql.DataSource;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -148,6 +176,11 @@ class SqlMemberSource
                 + keyValues);
         }
     }
+
+    public int countMemberChildren( Member member, List<RolapMember> children, MemberChildrenConstraint constraint ) {
+        return countMemberChildren( (RolapMember) member, children, constraint);
+    }
+
 
     public int countMemberChildren( Member member, List<RolapMember> children, MemberChildrenConstraint constraint ) {
         return countMemberChildren( (RolapMember) member, children, constraint);
@@ -520,6 +553,76 @@ RME is this right
         throw MondrianResource.instance().Internal.ex("Exception: The query [" + sql + "] returned no values");
     }
 
+    private int countMemberChildren(RolapMember parentMember, List<RolapMember> children, MemberChildrenConstraint constraint) {
+
+        Pair<String, List<SqlStatement.Type>> pair;
+        SqlQuery query = null;
+        final RolapLevel parentLevel = parentMember.getLevel();
+        RolapLevel childLevel;
+        if ( parentLevel.isParentChild() ) {
+            query = makeChildMemberSqlPCQuery( parentMember, false );
+            childLevel = parentLevel;
+        } else {
+            childLevel = (RolapLevel) parentLevel.getChildLevel();
+            if ( childLevel == null ) {
+                // member is at last level, so can have no children
+                return 0;
+            }
+            if ( childLevel.isParentChild() ) {
+                query = makeChildMemberSqlPCRootQuery( parentMember);
+            } else {
+                query = makeChildMemberSqlQuery( parentMember, dataSource, constraint, false );
+            }
+        }
+
+        SqlQuery newQuery =
+          SqlQuery.newQuery(
+            dataSource,
+            "while generating query to retrieve children of "
+              + "parent/child hierarchy member " + parentMember);
+
+
+        newQuery.addSelect("count(*)", null);
+        newQuery.addFrom( query, "X", false );
+
+
+
+        pair = newQuery.toSqlAndTypes();
+        final String sql = pair.left;
+        final List<SqlStatement.Type> types = pair.right;
+
+        SqlStatement stmt =
+          RolapUtil.executeQuery(
+            dataSource, sql, types, 0, 0,
+            new SqlStatement.StatementLocus(
+              Locus.peek().execution,
+              "SqlMemberSource.getMemberChildren",
+              "while building member cache",
+              SqlStatementEvent.Purpose.TUPLES, 0),
+            -1, -1, null);
+
+        try {
+
+            ResultSet resultSet = stmt.getResultSet();
+            if(resultSet.next()) {
+                int result = resultSet.getInt( 1 );
+                RolapUtil.LOGGER.debug(
+                  "[mondrian.sql] SqlMemberSource.countMemberChildren" + ": count returned  [" + result + "] records"
+                );
+                return result;
+            }
+            RolapUtil.LOGGER.error(
+              "Exception: The query [" + sql + "] returned no values" );
+
+        } catch ( SQLException e ) {
+            throw stmt.handle( e );
+        } finally {
+            stmt.close();
+        }
+
+        throw MondrianResource.instance().Internal.ex("Exception: The query [" + sql + "] returned no values");
+    }
+
     private void setOrderKey(RolapMemberBase member, Object orderKey) {
         if ((orderKey != null) && !(orderKey instanceof Comparable)) {
             orderKey = orderKey.toString();
@@ -691,7 +794,27 @@ RME is this right
       MemberChildrenConstraint constraint,
       boolean applyOrderBy)
     {
+        return makeChildMemberSqlQuery(member, dataSource, constraint).toSqlAndTypes();
+    }
+
+    SqlQuery makeChildMemberSqlQuery(
+      RolapMember member,
+      DataSource dataSource,
+      MemberChildrenConstraint constraint)
+    {
+       return makeChildMemberSqlQuery( member, dataSource, constraint, true);
+    }
+    SqlQuery makeChildMemberSqlQuery(
+      RolapMember member,
+      DataSource dataSource,
+      MemberChildrenConstraint constraint,
+      boolean applyOrderBy)
+    {
         SqlQuery sqlQuery =
+          SqlQuery.newQuery(
+            dataSource,
+            "while generating query to retrieve children of member "
+              + member);
           SqlQuery.newQuery(
             dataSource,
             "while generating query to retrieve children of member "
@@ -716,15 +839,18 @@ RME is this right
 
         boolean levelCollapsed =
           (aggStar != null)
+          (aggStar != null)
             && isLevelCollapsed(aggStar, (RolapCubeLevel)level);
 
         boolean multipleCols =
+          SqlMemberSource.levelContainsMultipleColumns(level);
           SqlMemberSource.levelContainsMultipleColumns(level);
 
         if (levelCollapsed && !multipleCols) {
             // if this is a single column collapsed level, there is
             // no need to join it with dimension tables
             RolapStar.Column starColumn =
+              ((RolapCubeLevel) level).getStarKeyColumn();
               ((RolapCubeLevel) level).getStarKeyColumn();
             int bitPos = starColumn.getBitPosition();
             AggStar.Table.Column aggColumn = aggStar.lookupColumn(bitPos);
@@ -735,7 +861,9 @@ RME is this right
             }
             sqlQuery.addOrderBy(
               q, qAlias, true, false, true, true);
+              q, qAlias, true, false, true, true);
             aggColumn.getTable().addToFrom(sqlQuery, false, true);
+            return sqlQuery;
             return sqlQuery;
         }
 
@@ -755,9 +883,13 @@ RME is this right
             // if this is a collapsed level, add a join between key and aggstar
             RolapStar.Column starColumn =
               ((RolapCubeLevel) level).getStarKeyColumn();
+              ((RolapCubeLevel) level).getStarKeyColumn();
             int bitPos = starColumn.getBitPosition();
             AggStar.Table.Column aggColumn = aggStar.lookupColumn(bitPos);
             RolapStar.Condition condition =
+              new RolapStar.Condition(
+                level.getKeyExp(),
+                aggColumn.getExpression());
               new RolapStar.Condition(
                 level.getKeyExp(),
                 aggColumn.getExpression());
@@ -773,6 +905,9 @@ RME is this right
                 bitPos = starColumn.getBitPosition();
                 aggColumn = aggStar.lookupColumn(bitPos);
                 condition =
+                  new RolapStar.Condition(
+                    parentLevel.getKeyExp(),
+                    aggColumn.getExpression());
                   new RolapStar.Condition(
                     parentLevel.getKeyExp(),
                     aggColumn.getExpression());
@@ -1092,6 +1227,7 @@ RME is this right
             }
             if (childLevel.isParentChild()) {
                 pair = makeChildMemberSqlPCRoot(parentMember);
+                pair = makeChildMemberSqlPCRoot(parentMember);
                 parentChild = true;
             } else {
                 pair = makeChildMemberSql(parentMember, dataSource, constraint);
@@ -1307,13 +1443,26 @@ RME is this right
     }
     private SqlQuery makeChildMemberSqlPCRootQuery(
       RolapMember member)
+    private Pair<String, List<SqlStatement.Type>> makeChildMemberSqlPCRoot(
+        RolapMember member)
+    {
+        return makeChildMemberSqlPCRootQuery(member).toSqlAndTypes();
+    }
+    private SqlQuery makeChildMemberSqlPCRootQuery(
+      RolapMember member)
     {
         SqlQuery sqlQuery =
           SqlQuery.newQuery(
             dataSource,
             "while generating query to retrieve children of parent/child "
               + "hierarchy member " + member);
+          SqlQuery.newQuery(
+            dataSource,
+            "while generating query to retrieve children of parent/child "
+              + "hierarchy member " + member);
         Util.assertTrue(
+          member.isAll(),
+          "In the current implementation, parent/child hierarchies must "
           member.isAll(),
           "In the current implementation, parent/child hierarchies must "
             + "have only one level (plus the 'All' level).");
@@ -1324,12 +1473,15 @@ RME is this right
         Util.assertTrue(
           level.isUnique(), "parent-child level '"
             + level + "' must be unique");
+          level.isUnique(), "parent-child level '"
+            + level + "' must be unique");
 
         hierarchy.addToFrom(sqlQuery, level.getParentExp());
         String parentId = level.getParentExp().getExpression(sqlQuery);
         StringBuilder condition = new StringBuilder(64);
         condition.append(parentId);
         if (level.getNullParentValue() == null
+          || level.getNullParentValue().equalsIgnoreCase("NULL"))
           || level.getNullParentValue().equalsIgnoreCase("NULL"))
         {
             condition.append(" IS NULL");
@@ -1348,6 +1500,7 @@ RME is this right
 
         addLevel(sqlQuery, level, true);
 
+        return sqlQuery;
         return sqlQuery;
     }
 
@@ -1426,7 +1579,15 @@ RME is this right
     }
 
     private SqlQuery makeChildMemberSqlPCQuery(RolapMember member, boolean applyOrderBy) {
+        return makeChildMemberSqlPCQuery(member, true).toSqlAndTypes();
+    }
+
+    private SqlQuery makeChildMemberSqlPCQuery(RolapMember member, boolean applyOrderBy) {
         SqlQuery sqlQuery =
+          SqlQuery.newQuery(
+            dataSource,
+            "while generating query to retrieve children of "
+              + "parent/child hierarchy member " + member);
           SqlQuery.newQuery(
             dataSource,
             "while generating query to retrieve children of "
@@ -1435,6 +1596,8 @@ RME is this right
 
         Util.assertTrue(!level.isAll(), "all level cannot be parent-child");
         Util.assertTrue(
+          level.isUnique(),
+          "parent-child level '" + level + "' must be "  + "unique");
           level.isUnique(),
           "parent-child level '" + level + "' must be "  + "unique");
 
@@ -1449,7 +1612,16 @@ RME is this right
         String childId = level.getKeyExp().getExpression(sqlQuery);
         String idAlias =
           sqlQuery.addSelectGroupBy(childId, level.getInternalType());
+          sqlQuery.addSelectGroupBy(childId, level.getInternalType());
         hierarchy.addToFrom(sqlQuery, level.getOrdinalExp());
+        if (applyOrderBy) {
+            final String orderBy = level.getOrdinalExp().getExpression( sqlQuery );
+            if ( !orderBy.equals( childId ) ) {
+                String orderAlias = sqlQuery.addSelectGroupBy( orderBy, null );
+                sqlQuery.addOrderBy(orderBy, orderAlias, true, false, true, true );
+            } else {
+                sqlQuery.addOrderBy(childId, idAlias, true, false, true, true );
+            }
         if (applyOrderBy) {
             final String orderBy = level.getOrdinalExp().getExpression( sqlQuery );
             if ( !orderBy.equals( childId ) ) {
@@ -1470,13 +1642,17 @@ RME is this right
             // that are functionally dependent on the level value
             if (!sqlQuery.getDialect().allowsSelectNotInGroupBy()
               || !property.dependsOnLevelValue())
+              || !property.dependsOnLevelValue())
             {
                 sqlQuery.addGroupBy(s, alias);
             }
         }
 
         return sqlQuery;
+
+        return sqlQuery;
     }
+
 
 
     // implement MemberReader

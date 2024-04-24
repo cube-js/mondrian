@@ -10,3 +10,7 @@ mondrian.*properties
 .idea
 *.json
 /.vs/slnx.sqlite
+bin/
+build/
+classes/
+lib/
