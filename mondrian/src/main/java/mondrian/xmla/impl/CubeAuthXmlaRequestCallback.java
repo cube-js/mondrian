@@ -53,11 +53,13 @@ public class CubeAuthXmlaRequestCallback extends AuthenticatingXmlaRequestCallba
                 System.out.println("Connected to the PostgreSQL server successfully.");
             } else {
                 System.out.println("Failed to make connection!");
+                throw new UnsupportedOperationException("Failed to make connection!");
             }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
+            throw new UnsupportedOperationException(e.getMessage());
         }
 
-        throw new UnsupportedOperationException("2309: Username: " + username + " Password: " + password + " SessionID: " + sessionID);
+        return "CubeRole";
     }
 }
