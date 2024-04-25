@@ -1,13 +1,9 @@
 package mondrian.xmla.impl;
 
-import java.security.Principal;
-import java.util.Base64;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
-import org.w3c.dom.Element;
 
 import mondrian.xmla.XmlaConstants;
 import org.apache.catalina.realm.GenericPrincipal;
