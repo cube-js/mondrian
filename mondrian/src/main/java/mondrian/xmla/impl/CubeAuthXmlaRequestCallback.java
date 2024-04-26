@@ -56,6 +56,6 @@ public class CubeAuthXmlaRequestCallback extends AuthenticatingXmlaRequestCallba
             throw new UnsupportedOperationException(e.getMessage());
         }
 
-        return "CubeRole";
+        return "user";
     }
 }
