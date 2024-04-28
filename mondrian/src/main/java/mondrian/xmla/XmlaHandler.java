@@ -80,12 +80,12 @@ public class XmlaHandler {
     /**
      * Name of property used by JDBC to hold user name.
      */
-    private static final String JDBC_USER = "user";
+    private static final String JDBC_USER = "JdbcUser";
 
     /**
      * Name of property used by JDBC to hold password.
      */
-    private static final String JDBC_PASSWORD = "password";
+    private static final String JDBC_PASSWORD = "JdbcPassword";
 
     /**
      * Name of property used by JDBC to hold locale. It is not hard-wired into
