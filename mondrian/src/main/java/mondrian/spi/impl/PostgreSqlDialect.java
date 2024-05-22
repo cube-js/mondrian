@@ -129,6 +129,11 @@ public class PostgreSqlDialect extends JdbcDialectImpl {
     public boolean requiresDrillthroughMaxRowsInLimit() {
         return true;
     }
+
+    @Override
+    public String toUpper(String expr) {
+        return expr;
+    }
 }
 
 // End PostgreSqlDialect.java
